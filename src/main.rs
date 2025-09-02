@@ -104,7 +104,7 @@ impl SinglePuzzle{
                         self.slots[16] = first_one;
                     }
                 }
-            }
+            },
             Face::TopRight => {
                 // Apply top-right move
                 match mv.direction  {
@@ -127,7 +127,7 @@ impl SinglePuzzle{
                         self.slots[5] = first_one;
                     }
                 }
-            }
+            },
             Face::Right => {
                 // Apply right move
                 match mv.direction {
@@ -150,7 +150,7 @@ impl SinglePuzzle{
                         self.slots[3] = first_one;
                     }
                 }
-            }
+            },
             Face::BottomRight => {
                 // Apply bottom-right move
                 match mv.direction {
@@ -162,7 +162,7 @@ impl SinglePuzzle{
                         self.slots[11] = self.slots[10];
                         self.slots[10] = self.slots[8];
                         self.slots[8] = first_one;
-                    }
+                    },
                     Direction::CounterClockwise => {
                         let first_one = self.slots[9];
                         self.slots[9] = self.slots[8];
@@ -171,12 +171,12 @@ impl SinglePuzzle{
                         self.slots[11] = self.slots[12];
                         self.slots[12] = self.slots[13];
                         self.slots[13] = first_one;
+                    }
                 }
             }
         }
     }
 }
-
 fn main() {
     println!("Hello, world!");
 }
