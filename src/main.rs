@@ -1,5 +1,8 @@
 use rand::seq::SliceRandom;
 use rand::thread_rng;
+use std::fs::{File, create_dir_all};
+use std::io::{BufWriter, BufReader, Write, Read};
+use std::path::Path;
 
 // make face be stored with 3 bits
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -360,25 +363,268 @@ impl SinglePuzzle {
         }
         self.slots[*nums.last().unwrap() as usize] = first_one;
     }
+
+    fn from_scramble_and_slots(scramble: Option<Scramble>, slots: Vec<u8>, with_opposite_move: bool) -> Self {
+        let mut puzzle = SinglePuzzle {
+            scramble,
+            slots,
+            colors: vec![0; slots.len()],
+            with_opposite_move,
+        };
+        puzzle.deduce_colors();
+        puzzle
+    }
 }
 
-pub fn permutations(input: Vec<u8>) -> Vec<Vec<u8>> {
-    fn helper(prefix: Vec<u8>, remainder: Vec<u8>, acc: &mut Vec<Vec<u8>>) {
-        if remainder.is_empty() {
-            acc.push(prefix);
-        } else {
-            for i in 0..remainder.len() {
-                let mut next_prefix = prefix.clone();
-                next_prefix.push(remainder[i]);
-                let mut next_remainder = remainder.clone();
-                next_remainder.remove(i);
-                helper(next_prefix, next_remainder, acc);
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct Batch {
+    batch_size: usize,
+    states: Vec<SinglePuzzle>,
+}
+
+impl Batch {
+    fn new(batch_size: usize) -> Self {
+        Batch {
+            batch_size,
+            states: Vec::with_capacity(batch_size),
+        }
+    }
+
+    fn is_full(&self) -> bool {
+        self.states.len() >= self.batch_size
+    }
+
+    fn add_state(&mut self, state: SinglePuzzle) {
+        self.states.push(state);
+    }
+
+    fn sort_states(&mut self) {
+        self.states.sort();
+    }
+
+    fn save_to_file(&self, path: &str) {
+        let file = File::create(path).expect("Failed to create batch file");
+        let mut writer = BufWriter::new(file);
+        for puzzle in &self.states {
+            // Store scramble length, scramble moves (face+dir as u8), slots
+            let scramble = puzzle.get_scramble();
+            let moves_len = scramble.moves.len() as u8;
+            writer.write_all(&[moves_len]).unwrap();
+            for mv in scramble.moves.iter() {
+                writer.write_all(&[mv.face as u8, mv.direction as u8]).unwrap();
+            }
+            for slot in puzzle.slots.iter() {
+                writer.write_all(&[*slot]).unwrap();
+            }
+            // newline for easier parsing (optional, can be omitted for more compact storage)
+            writer.write_all(b"\n").unwrap();
+        }
+    }
+
+    fn load_from_file(path: &str, with_opposite_move: bool) -> Self {
+        let file = File::open(path).expect("Failed to open batch file");
+        let mut reader = BufReader::new(file);
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf).unwrap();
+        let mut states = Vec::new();
+        let mut i = 0;
+        while i < buf.len() {
+            let moves_len = buf[i] as usize;
+            i += 1;
+            let mut moves = Vec::new();
+            for _ in 0..moves_len {
+                let face = match buf[i] {
+                    0b001 => Face::TopLeft,
+                    0b010 => Face::Left,
+                    0b100 => Face::BottomLeft,
+                    0b011 => Face::TopRight,
+                    0b101 => Face::Right,
+                    0b110 => Face::BottomRight,
+                    _ => panic!("Invalid face"),
+                };
+                let direction = match buf[i + 1] {
+                    0b1 => Direction::Clockwise,
+                    0b0 => Direction::CounterClockwise,
+                    _ => panic!("Invalid direction"),
+                };
+                moves.push(Move::new(face, direction));
+                i += 2;
+            }
+            let mut slots = Vec::new();
+            for _ in 0..24 {
+                slots.push(buf[i]);
+                i += 1;
+            }
+            // skip newline if present
+            if i < buf.len() && buf[i] == b'\n' {
+                i += 1;
+            }
+            let scramble = if moves.is_empty() { None } else { Some(Scramble { moves }) };
+            states.push(SinglePuzzle::from_scramble_and_slots(scramble, slots, with_opposite_move));
+        }
+        Batch {
+            batch_size: states.len(),
+            states,
+        }
+    }
+}
+
+struct ReachableStates {
+    _depth: usize,
+    batch_size: usize,
+    batch_files: Vec<String>,
+    store_directory: String,
+}
+
+impl ReachableStates {
+    fn new(depth: usize, puzzle: SinglePuzzle, batch_size: usize, store_directory: String) -> Self {
+        create_dir_all(&store_directory).expect("Failed to create store directory");
+        let mut batch_files = Vec::new();
+        let mut batch = Batch::new(batch_size);
+        let mut batch_count = 0;
+        let mut reachable_states = Self {
+            _depth: depth,
+            batch_size,
+            batch_files,
+            store_directory: store_directory.clone(),
+        };
+        reachable_states.compute_reachable(
+            depth,
+            &get_all_moves(),
+            Scramble { moves: Vec::new() },
+            puzzle,
+            &mut batch,
+            &mut batch_count,
+        );
+        // Save any remaining puzzles in the last batch
+        if !batch.states.is_empty() {
+            batch.sort_states();
+            let batch_path = format!("{}/batch_{}.bin", store_directory, batch_count);
+            batch.save_to_file(&batch_path);
+            reachable_states.batch_files.push(batch_path);
+        }
+        reachable_states
+    }
+
+    fn print_first_5(&self, with_opposite_move: bool) {
+        let mut count = 0;
+        for batch_path in &self.batch_files {
+            let batch = Batch::load_from_file(batch_path, with_opposite_move);
+            for state in &batch.states {
+                println!("{:?}", state);
+                count += 1;
+                if count >= 5 {
+                    return;
+                }
             }
         }
     }
-    let mut acc = Vec::new();
-    helper(Vec::new(), input, &mut acc);
-    acc
+
+    fn compute_reachable(
+        &mut self,
+        depth: usize,
+        all_moves: &Vec<Move>,
+        scramble: Scramble,
+        puzzle: SinglePuzzle,
+        batch: &mut Batch,
+        batch_count: &mut usize,
+    ) {
+        for mv in all_moves.iter() {
+            if depth == 0 {
+                let mut cloned_puzzle = puzzle.clone();
+                let mut new_scramble = scramble.clone();
+                new_scramble.moves.push(mv.clone());
+                cloned_puzzle.apply_scramble(new_scramble.clone());
+
+                batch.add_state(cloned_puzzle);
+                if batch.is_full() {
+                    batch.sort_states();
+                    let batch_path = format!("{}/batch_{}.bin", self.store_directory, *batch_count);
+                    batch.save_to_file(&batch_path);
+                    self.batch_files.push(batch_path);
+                    *batch = Batch::new(self.batch_size);
+                    *batch_count += 1;
+                }
+            } else {
+                let mut new_scramble = scramble.clone();
+                new_scramble.moves.push(mv.clone());
+                self.compute_reachable(
+                    depth - 1,
+                    all_moves,
+                    new_scramble,
+                    puzzle.clone(),
+                    batch,
+                    batch_count,
+                );
+            }
+        }
+    }
+
+    fn overlaps(&self, other: &Self, with_opposite_move: bool) -> Option<Scramble> {
+        // Only load two batches at a time from disk
+        for batch_a_path in &self.batch_files {
+            let batch_a = Batch::load_from_file(batch_a_path, with_opposite_move);
+            for batch_b_path in &other.batch_files {
+                let batch_b = Batch::load_from_file(batch_b_path, with_opposite_move);
+                let mut i = 0;
+                let mut j = 0;
+                while i < batch_a.states.len() && j < batch_b.states.len() {
+                    match batch_a.states[i].cmp(&batch_b.states[j]) {
+                        std::cmp::Ordering::Equal => {
+                            let first_part_of_scramble = batch_a.states[i].get_scramble();
+                            let second_part_of_scramble = batch_b.states[j].get_scramble().invert();
+                            return Some(first_part_of_scramble.concat(second_part_of_scramble));
+                        }
+                        std::cmp::Ordering::Less => i += 1,
+                        std::cmp::Ordering::Greater => j += 1,
+                    }
+                }
+            }
+        }
+        None
+    }
+}
+
+#[allow(unreachable_code)]
+fn main() {
+    // print the size of Direction, Face and Move in bits
+    println!(
+        "Size of Direction: {}",
+        std::mem::size_of::<Direction>() * 8
+    );
+    println!("Size of Face: {}", std::mem::size_of::<Face>() * 8);
+    println!("Size of Move: {}", std::mem::size_of::<Move>() * 8);
+    println!("Size of usize: {}", std::mem::size_of::<usize>() * 8);
+    println!("Size of u8: {}", std::mem::size_of::<u8>() * 8);
+    let with_opposite_move = true;
+    let batch_size = 1_000_000;
+    let store_directory = "reachable_batches".to_string();
+    let scramble = get_random_scramble(50);
+    println!("Scramble: {:?}", scramble);
+    let scrambled_puzzle = SinglePuzzle::new_scrambled(scramble.clone(), with_opposite_move);
+    let depth = 7;
+    let reachable_states = ReachableStates::new(depth, scrambled_puzzle, batch_size, store_directory.clone());
+    reachable_states.print_first_5(with_opposite_move);
+    let all_solved_states = SinglePuzzle::get_solved_states(with_opposite_move);
+    for (i, solved_state) in all_solved_states.iter().enumerate() {
+        println!("Checking solved state {}...", i);
+        let reachable_from_solved = ReachableStates::new(depth, solved_state.clone(), batch_size, store_directory.clone());
+        let solve = reachable_from_solved.overlaps(&reachable_states, with_opposite_move);
+        match solve {
+            Some(solution) => {
+                println!("Found a solution with {} moves:", solution.moves.len());
+                for mv in solution.moves {
+                    print!("{}", mv.to_string());
+                }
+                println!();
+                return;
+            }
+            None => {
+                println!("No solution found for this solved state.");
+            }
+        }
+        break;
+    }
 }
 
 fn get_all_moves() -> Vec<Move> {
@@ -432,163 +678,21 @@ fn get_color(num: u8) -> u8 {
     }
 }
 
-struct Batch {
-    batch_size: usize,
-    states: Vec<SinglePuzzle>,
-}
-
-impl Batch {
-    fn new(batch_size: usize) -> Self {
-        Batch {
-            batch_size,
-            states: Vec::with_capacity(batch_size),
-        }
-    }
-
-    fn is_full(&self) -> bool {
-        self.states.len() >= self.batch_size
-    }
-
-    fn add_state(&mut self, state: SinglePuzzle) {
-        self.states.push(state);
-    }
-
-    fn sort_states(&mut self) {
-        self.states.sort();
-    }
-}
-
-struct ReachableStates {
-    _depth: usize,
-    batch_size: usize,
-    batches: Vec<Batch>,
-}
-
-impl ReachableStates {
-    fn new(depth: usize, puzzle: SinglePuzzle, batch_size: usize) -> Self {
-        let mut reachable_states = Self {
-            _depth: depth,
-            batch_size,
-            batches: Vec::new(),
-        };
-        reachable_states.compute_reachable(
-            depth,
-            &get_all_moves(),
-            Scramble { moves: Vec::new() },
-            puzzle,
-        );
-        reachable_states
-    }
-
-    fn print_first_5(&self) {
-        let mut count = 0;
-        for batch in &self.batches {
-            for state in &batch.states {
-                println!("{:?}", state);
-                count += 1;
-                if count >= 5 {
-                    return;
-                }
+pub fn permutations(input: Vec<u8>) -> Vec<Vec<u8>> {
+    fn helper(prefix: Vec<u8>, remainder: Vec<u8>, acc: &mut Vec<Vec<u8>>) {
+        if remainder.is_empty() {
+            acc.push(prefix);
+        } else {
+            for i in 0..remainder.len() {
+                let mut next_prefix = prefix.clone();
+                next_prefix.push(remainder[i]);
+                let mut next_remainder = remainder.clone();
+                next_remainder.remove(i);
+                helper(next_prefix, next_remainder, acc);
             }
         }
     }
-
-    fn compute_reachable(
-        &mut self,
-        depth: usize,
-        all_moves: &Vec<Move>,
-        scramble: Scramble,
-        puzzle: SinglePuzzle,
-    ) {
-        for mv in all_moves.iter() {
-            if depth == 0 {
-                let mut cloned_puzzle = puzzle.clone();
-                let mut new_scramble = scramble.clone();
-                new_scramble.moves.push(mv.clone());
-                cloned_puzzle.apply_scramble(new_scramble.clone());
-
-                // Add to current batch, create/sort new batch if needed
-                if self.batches.is_empty() || self.batches.last().unwrap().is_full() {
-                    self.batches.push(Batch::new(self.batch_size));
-                }
-                let batch = self.batches.last_mut().unwrap();
-                batch.add_state(cloned_puzzle);
-                if batch.is_full() {
-                    batch.sort_states();
-                }
-            } else {
-                let mut new_scramble = scramble.clone();
-                new_scramble.moves.push(mv.clone());
-                self.compute_reachable(depth - 1, all_moves, new_scramble, puzzle.clone());
-            }
-        }
-    }
-
-    fn overlaps(&self, other: &Self) -> Option<Scramble> {
-        // Efficient batch-wise search since batches are sorted
-        let mut i = 0;
-        let mut j = 0;
-        // do two nested for loops over all batches
-        for i_batch in 0..self.batches.len() {
-            for j_batch in 0..other.batches.len() {
-                let batch_a = &self.batches[i_batch];
-                let batch_b = &other.batches[j_batch];
-                i = 0;
-                j = 0;
-                while i < batch_a.states.len() && j < batch_b.states.len() {
-                    match batch_a.states[i].cmp(&batch_b.states[j]) {
-                        std::cmp::Ordering::Equal => {
-                            let first_part_of_scramble = batch_a.states[i].get_scramble();
-                            let second_part_of_scramble = batch_b.states[j].get_scramble().invert();
-                            return Some(first_part_of_scramble.concat(second_part_of_scramble));
-                        }
-                        std::cmp::Ordering::Less => i += 1,
-                        std::cmp::Ordering::Greater => j += 1,
-                    }
-                }
-            }
-        }
-        None
-    }
-}
-
-#[allow(unreachable_code)]
-fn main() {
-    // print the size of Direction, Face and Move in bits
-    println!(
-        "Size of Direction: {}",
-        std::mem::size_of::<Direction>() * 8
-    );
-    println!("Size of Face: {}", std::mem::size_of::<Face>() * 8);
-    println!("Size of Move: {}", std::mem::size_of::<Move>() * 8);
-    println!("Size of usize: {}", std::mem::size_of::<usize>() * 8);
-    println!("Size of u8: {}", std::mem::size_of::<u8>() * 8);
-    let with_opposite_move = true;
-    let batch_size = 1_000_000;
-    let scramble = get_random_scramble(50);
-    println!("Scramble: {:?}", scramble);
-    let scrambled_puzzle = SinglePuzzle::new_scrambled(scramble.clone(), with_opposite_move);
-    let depth = 7;
-    let reachable_states = ReachableStates::new(depth, scrambled_puzzle, batch_size);
-    reachable_states.print_first_5();
-    let all_solved_states = SinglePuzzle::get_solved_states(with_opposite_move);
-    for (i, solved_state) in all_solved_states.iter().enumerate() {
-        println!("Checking solved state {}...", i);
-        let reachable_from_solved = ReachableStates::new(depth, solved_state.clone(), batch_size);
-        let solve = reachable_from_solved.overlaps(&reachable_states);
-        match solve {
-            Some(solution) => {
-                println!("Found a solution with {} moves:", solution.moves.len());
-                for mv in solution.moves {
-                    print!("{}", mv.to_string());
-                }
-                println!();
-                return;
-            }
-            None => {
-                println!("No solution found for this solved state.");
-            }
-        }
-        break;
-    }
+    let mut acc = Vec::new();
+    helper(Vec::new(), input, &mut acc);
+    acc
 }
