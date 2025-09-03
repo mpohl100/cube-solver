@@ -87,6 +87,7 @@ impl Scramble{
 struct SinglePuzzle{
     scramble: Option<Scramble>,
     slots: Vec<u8>,
+    colors: Vec<u8>,
 }
 
 impl PartialOrd for SinglePuzzle {
@@ -97,7 +98,7 @@ impl PartialOrd for SinglePuzzle {
 
 impl Ord for SinglePuzzle {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.slots.cmp(&other.slots)
+        self.colors.cmp(&other.colors)
     }
 }
 
@@ -110,7 +111,7 @@ impl SinglePuzzle{
     }
 
     fn new_solved() -> Self {
-        Self { scramble: None, slots: (0..=24).collect() }
+        Self { scramble: None, slots: (0..=23).collect(), colors: (0..=23).map(get_color).collect() }
     }
 
     fn new_scrambled(scramble: Scramble) -> Self {
@@ -124,6 +125,7 @@ impl SinglePuzzle{
                 16,17,18,19,
                 20,21,22,23
             ],
+            colors: (0..=23).map(get_color).collect(),
         };
         for mv in scramble.moves {
             puzzle.apply_move(mv);
@@ -132,9 +134,11 @@ impl SinglePuzzle{
     }
 
     fn apply_scramble(&mut self, scramble: Scramble) {
+        self.scramble = Some(scramble.clone());
         for mv in scramble.moves {
             self.apply_move(mv);
         }
+        self.colors = self.slots.iter().map(|&num| get_color(num)).collect();
     }
 
     fn apply_move(&mut self, mv: Move) {
@@ -367,6 +371,18 @@ fn get_random_scramble(num_moves: usize) -> Scramble {
     Scramble { moves: scramble }
 }
 
+fn get_color(num: u8) -> u8{
+    match num {
+        0 | 4 | 5 | 23 => 0, // white
+        1 | 2 | 3 | 6 => 1, // red
+        7 | 8 | 9 | 10 => 2, // blue
+        11 | 12 | 13 | 14 => 3, // orange
+        15 | 16 | 17 | 18 => 4, // green
+        19 | 20 | 21 | 22 => 5, // yellow
+        _ => panic!("Invalid number"),
+    }
+}
+
 struct ReachableStates {
     _depth: usize,
     states: Vec<SinglePuzzle>,
@@ -378,6 +394,12 @@ impl ReachableStates {
         reachable_states.compute_reachable(depth, &get_all_moves(), Scramble { moves: Vec::new() }, puzzle);
         reachable_states.states.sort();
         reachable_states
+    }
+
+    fn print_first_5(&self) {
+        for state in self.states.iter().take(5) {
+            println!("{:?}", state);
+        }
     }
 
     fn compute_reachable(&mut self, depth: usize, all_moves: &Vec<Move>, scramble: Scramble, puzzle: SinglePuzzle) {
@@ -418,9 +440,11 @@ impl ReachableStates {
 
 fn main() {
     let scramble = get_random_scramble(50);
+    println!("Scramble: {:?}", scramble);
     let scrambled_puzzle = SinglePuzzle::new_scrambled(scramble.clone());
-    let depth = 6;
+    let depth = 7;
     let reachable_states = ReachableStates::new(depth, scrambled_puzzle);
+    reachable_states.print_first_5();
     let all_solved_states = SinglePuzzle::get_solved_states();
     for (i, solved_state) in all_solved_states.iter().enumerate(){
         println!("Checking solved state {}...", i);
@@ -435,7 +459,8 @@ fn main() {
                 println!();
                 return;
             }
-            None => {}
+            None => { println!("No solution found for this solved state."); }
         }
+        break;
     }
 }

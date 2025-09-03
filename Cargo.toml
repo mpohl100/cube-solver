@@ -5,3 +5,8 @@ edition = "2021"
 
 [dependencies]
 rand = "0.8"
+
+# add main as binary
+[[bin]]
+name = "cube-solver"
+path = "src/main.rs"
