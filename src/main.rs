@@ -2,7 +2,7 @@
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 enum Face{
     TopLeft,
     Left,
@@ -23,7 +23,7 @@ fn to_string_face(face: Face) -> &'static str {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 enum Direction{
     Clockwise,
     CounterClockwise
@@ -36,7 +36,7 @@ fn to_string_direction(direction: Direction) -> &'static str {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 struct Move{
     face: Face,
     direction: Direction,
@@ -61,18 +61,61 @@ impl Move{
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+struct Scramble{
+    moves: Vec<Move>,
+}
+
+impl Scramble{
+    pub fn invert(&self) -> Self {
+        let mut inverted_moves = self.moves.clone();
+        inverted_moves.reverse();
+        for mv in &mut inverted_moves {
+            *mv = mv.get_inverted_move();
+        }
+        Scramble { moves: inverted_moves }
+    }
+
+    pub fn concat(&self, other: Scramble) -> Self {
+        let mut new_moves = self.moves.clone();
+        new_moves.extend(other.moves);
+        Scramble { moves: new_moves }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct SinglePuzzle{
+    scramble: Option<Scramble>,
     slots: Vec<u8>,
 }
 
+impl PartialOrd for SinglePuzzle {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for SinglePuzzle {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.slots.cmp(&other.slots)
+    }
+}
+
 impl SinglePuzzle{
-    fn new_solved() -> Self {
-        Self { slots: (0..=24).collect() }
+    pub fn get_scramble(&self) -> Scramble {
+        match &self.scramble {
+            Some(scramble) => scramble.clone(),
+            None => Scramble { moves: Vec::new() },
+        }
     }
 
-    fn new_scramled(moves: Vec<Move>) -> Self {
+    fn new_solved() -> Self {
+        Self { scramble: None, slots: (0..=24).collect() }
+    }
+
+    fn new_scrambled(scramble: Scramble) -> Self {
         let mut puzzle = SinglePuzzle{
+            scramble: Some(scramble.clone()),
             slots: vec![
                 0,1,2,3,
                 4,5,6,7,
@@ -82,10 +125,16 @@ impl SinglePuzzle{
                 20,21,22,23
             ],
         };
-        for mv in moves {
+        for mv in scramble.moves {
             puzzle.apply_move(mv);
         }
         puzzle
+    }
+
+    fn apply_scramble(&mut self, scramble: Scramble) {
+        for mv in scramble.moves {
+            self.apply_move(mv);
+        }
     }
 
     fn apply_move(&mut self, mv: Move) {
@@ -305,7 +354,7 @@ fn get_all_moves() -> Vec<Move> {
     all_moves
 }
 
-fn get_random_scramble(num_moves: usize) -> Vec<Move> {
+fn get_random_scramble(num_moves: usize) -> Scramble {
     let all_faces = [Face::TopLeft, Face::Left, Face::BottomLeft, Face::TopRight, Face::Right, Face::BottomRight];
     let all_directions = [Direction::Clockwise, Direction::CounterClockwise];
     let mut rng = thread_rng();
@@ -315,14 +364,77 @@ fn get_random_scramble(num_moves: usize) -> Vec<Move> {
         let direction = all_directions.choose(&mut rng).unwrap();
         scramble.push(Move::new(*face, *direction));
     }
-    scramble
+    Scramble { moves: scramble }
+}
+
+struct ReachableStates {
+    _depth: usize,
+    states: Vec<SinglePuzzle>,
+}
+
+impl ReachableStates {
+    fn new(depth: usize, puzzle: SinglePuzzle) -> Self {
+        let mut reachable_states = Self { _depth: depth, states: Vec::new() };
+        reachable_states.compute_reachable(depth, &get_all_moves(), Scramble { moves: Vec::new() }, puzzle);
+        reachable_states.states.sort();
+        reachable_states
+    }
+
+    fn compute_reachable(&mut self, depth: usize, all_moves: &Vec<Move>, scramble: Scramble, puzzle: SinglePuzzle) {
+        for mv in all_moves.iter() {
+            if depth == 0 {
+                let mut cloned_puzzle = puzzle.clone();
+                let mut new_scramble = scramble.clone();
+                new_scramble.moves.push(mv.clone());
+                cloned_puzzle.apply_scramble(new_scramble.clone());
+                self.states.push(cloned_puzzle);
+            } else {
+                let mut new_scramble = scramble.clone();
+                new_scramble.moves.push(mv.clone());
+                self.compute_reachable(depth - 1, all_moves, new_scramble, puzzle.clone());
+            }
+        }
+    }
+
+    fn overlaps(&self, other: &Self) -> Option<Scramble>{
+        // todo implement by making use of the facts that the states are sorted already in most efficient time
+        let mut i = 0;
+        let mut j = 0;
+        while i < self.states.len() && j < other.states.len() {
+            match self.states[i].cmp(&other.states[j]) {
+                std::cmp::Ordering::Equal => {
+                    let first_part_of_scramble = self.states[i].get_scramble();
+                    let second_part_of_scramble = other.states[j].get_scramble().invert();
+
+                    return Some(first_part_of_scramble.concat(second_part_of_scramble));
+                }
+                std::cmp::Ordering::Less => i += 1,
+                std::cmp::Ordering::Greater => j += 1,
+            }
+        }
+        None
+    }
 }
 
 fn main() {
     let scramble = get_random_scramble(50);
-    let scrambled_puzzle = SinglePuzzle::new_scramled(scramble.clone());
+    let scrambled_puzzle = SinglePuzzle::new_scrambled(scramble.clone());
+    let depth = 8;
+    let reachable_states = ReachableStates::new(depth, scrambled_puzzle);
     let all_solved_states = SinglePuzzle::get_solved_states();
-    let depth = 4;
-    let all_moves = get_all_moves();
-
+    for solved_state in all_solved_states{
+        let reachable_from_solved = ReachableStates::new(depth, solved_state);
+        let solve = reachable_from_solved.overlaps(&reachable_states);
+        match solve {
+            Some(solution) => {
+                println!("Found a solution with {} moves:", solution.moves.len());
+                for mv in solution.moves {
+                    print!("{}", mv.to_string());
+                }
+                println!();
+                return;
+            }
+            None => {}
+        }
+    }
 }
