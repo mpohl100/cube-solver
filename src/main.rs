@@ -587,25 +587,17 @@ impl ReachableStates {
 
 #[allow(unreachable_code)]
 fn main() {
-    // print the size of Direction, Face and Move in bits
-    println!(
-        "Size of Direction: {}",
-        std::mem::size_of::<Direction>() * 8
-    );
-    println!("Size of Face: {}", std::mem::size_of::<Face>() * 8);
-    println!("Size of Move: {}", std::mem::size_of::<Move>() * 8);
-    println!("Size of usize: {}", std::mem::size_of::<usize>() * 8);
-    println!("Size of u8: {}", std::mem::size_of::<u8>() * 8);
-
-    find_solution(7);
+    let with_opposite_move = false;
+    let scramble = get_random_scramble(50);
+    for i in (7..13) {
+        find_solution(i, scramble.clone(), with_opposite_move);
+    }
 }
 
-fn find_solution(depth: usize) {
-    let with_opposite_move = true;
+fn find_solution(depth: usize, scramble: Scramble, with_opposite_move: bool) {
     let batch_size = 1_000_000;
     let store_directory = "reachable_batches".to_string();
-    let scramble = get_random_scramble(50);
-    println!("Scramble: {:?}", scramble);
+    println!("Depth: {}, Scramble: {:?}", depth, scramble);
     let scrambled_puzzle = SinglePuzzle::new_scrambled(scramble.clone(), with_opposite_move);
     let reachable_states = ReachableStates::new(depth, scrambled_puzzle, batch_size, store_directory.clone());
     reachable_states.print_first_5(with_opposite_move);
