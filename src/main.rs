@@ -56,6 +56,22 @@ impl Move{
         }
     }
 
+    pub fn get_opposite_move(&self) -> Self{
+        let opposite_face = match self.face {
+            Face::TopLeft => Face::BottomRight,
+            Face::Left => Face::Right,
+            Face::BottomLeft => Face::TopRight,
+            Face::TopRight => Face::BottomLeft,
+            Face::Right => Face::Left,
+            Face::BottomRight => Face::TopLeft,
+        };
+        let opposite_direction = match self.direction {
+            Direction::Clockwise => Direction::CounterClockwise,
+            Direction::CounterClockwise => Direction::Clockwise,
+        };
+        Move::new(opposite_face, opposite_direction)
+    }
+
     pub fn to_string(&self) -> String {
         format!("{} {};", to_string_face(self.face), to_string_direction(self.direction))
     }
@@ -85,6 +101,7 @@ impl Scramble{
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct SinglePuzzle{
+    with_opposite_move: bool,
     scramble: Option<Scramble>,
     slots: Vec<u8>,
     colors: Vec<u8>,
@@ -110,11 +127,11 @@ impl SinglePuzzle{
         }
     }
 
-    fn new_solved() -> Self {
-        Self { scramble: None, slots: (0..=23).collect(), colors: (0..=23).map(get_color).collect() }
+    fn new_solved(with_opposite_move: bool) -> Self {
+        Self { scramble: None, slots: (0..=23).collect(), colors: (0..=23).map(get_color).collect(), with_opposite_move }
     }
 
-    fn new_scrambled(scramble: Scramble) -> Self {
+    fn new_scrambled(scramble: Scramble, with_opposite_move: bool) -> Self {
         let mut puzzle = SinglePuzzle{
             scramble: Some(scramble.clone()),
             slots: vec![
@@ -126,9 +143,10 @@ impl SinglePuzzle{
                 20,21,22,23
             ],
             colors: (0..=23).map(get_color).collect(),
+            with_opposite_move,
         };
         for mv in scramble.moves {
-            puzzle.apply_move(mv);
+            puzzle.apply_move(mv, true);
         }
         puzzle.deduce_colors();
         puzzle
@@ -141,12 +159,16 @@ impl SinglePuzzle{
     fn apply_scramble(&mut self, scramble: Scramble) {
         self.scramble = Some(scramble.clone());
         for mv in scramble.moves {
-            self.apply_move(mv);
+            self.apply_move(mv, true);
         }
         self.colors = self.slots.iter().map(|&num| get_color(num)).collect();
     }
 
-    fn apply_move(&mut self, mv: Move) {
+    fn apply_move(&mut self, mv: Move, apply_opposite: bool) {
+        if self.with_opposite_move && apply_opposite {
+            let opposite_mv = mv.get_opposite_move();
+            self.apply_move(opposite_mv, false);
+        }
         // Apply the move to the puzzle state
         match mv.face {
             Face::TopLeft => {
@@ -291,7 +313,7 @@ impl SinglePuzzle{
         }
     }
 
-    pub fn get_solved_states() -> Vec<Self> {
+    pub fn get_solved_states(with_opposite_move: bool) -> Vec<Self> {
         let top_area = permutations([0,4,5,23].to_vec()).into_iter().take(4);
         let top_right_area = permutations([1,2,3,6].to_vec()).into_iter().take(4);
         let bottom_right_area = permutations([7,8,9,10].to_vec()).into_iter().take(4);
@@ -306,7 +328,7 @@ impl SinglePuzzle{
                     for bp in bottom_area.clone() {
                         for blp in bottom_left_area.clone() {
                             for tlp in top_left_area.clone() {
-                                let mut puzzle = SinglePuzzle::new_solved();
+                                let mut puzzle = SinglePuzzle::new_solved(with_opposite_move);
                                 puzzle.apply_cycle(tp.clone());
                                 puzzle.apply_cycle(trp.clone());
                                 puzzle.apply_cycle(brp.clone());
@@ -445,13 +467,14 @@ impl ReachableStates {
 }
 
 fn main() {
+    let with_opposite_move = true;
     let scramble = get_random_scramble(50);
     println!("Scramble: {:?}", scramble);
-    let scrambled_puzzle = SinglePuzzle::new_scrambled(scramble.clone());
+    let scrambled_puzzle = SinglePuzzle::new_scrambled(scramble.clone(), with_opposite_move);
     let depth = 6;
     let reachable_states = ReachableStates::new(depth, scrambled_puzzle);
     reachable_states.print_first_5();
-    let all_solved_states = SinglePuzzle::get_solved_states();
+    let all_solved_states = SinglePuzzle::get_solved_states(with_opposite_move);
     for (i, solved_state) in all_solved_states.iter().enumerate(){
         println!("Checking solved state {}...", i);
         let reachable_from_solved = ReachableStates::new(depth, solved_state.clone());
