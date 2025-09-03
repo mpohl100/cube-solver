@@ -3,7 +3,7 @@ use rand::thread_rng;
 
 // make face be stored with 3 bits
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-enum Face{
+enum Face {
     TopLeft = 0b001,
     Left = 0b010,
     BottomLeft = 0b100,
@@ -25,9 +25,9 @@ fn to_string_face(face: Face) -> &'static str {
 
 // make direction stored as 1 bit
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-enum Direction{
+enum Direction {
     Clockwise = 0b1,
-    CounterClockwise = 0b0
+    CounterClockwise = 0b0,
 }
 
 fn to_string_direction(direction: Direction) -> &'static str {
@@ -38,26 +38,24 @@ fn to_string_direction(direction: Direction) -> &'static str {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-struct Move{
+struct Move {
     face: Face,
     direction: Direction,
 }
 
-
-
-impl Move{
+impl Move {
     pub fn new(face: Face, direction: Direction) -> Self {
         Self { face, direction }
     }
 
-    pub fn get_inverted_move(&self) -> Self{
+    pub fn get_inverted_move(&self) -> Self {
         match self.direction {
             Direction::Clockwise => Move::new(self.face, Direction::CounterClockwise),
             Direction::CounterClockwise => Move::new(self.face, Direction::Clockwise),
         }
     }
 
-    pub fn get_opposite_move(&self) -> Self{
+    pub fn get_opposite_move(&self) -> Self {
         let opposite_face = match self.face {
             Face::TopLeft => Face::BottomRight,
             Face::Left => Face::Right,
@@ -74,23 +72,29 @@ impl Move{
     }
 
     pub fn to_string(&self) -> String {
-        format!("{} {};", to_string_face(self.face), to_string_direction(self.direction))
+        format!(
+            "{} {};",
+            to_string_face(self.face),
+            to_string_direction(self.direction)
+        )
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-struct Scramble{
+struct Scramble {
     moves: Vec<Move>,
 }
 
-impl Scramble{
+impl Scramble {
     pub fn invert(&self) -> Self {
         let mut inverted_moves = self.moves.clone();
         inverted_moves.reverse();
         for mv in &mut inverted_moves {
             *mv = mv.get_inverted_move();
         }
-        Scramble { moves: inverted_moves }
+        Scramble {
+            moves: inverted_moves,
+        }
     }
 
     pub fn concat(&self, other: Scramble) -> Self {
@@ -101,7 +105,7 @@ impl Scramble{
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct SinglePuzzle{
+struct SinglePuzzle {
     with_opposite_move: bool,
     scramble: Option<Scramble>,
     slots: Vec<u8>,
@@ -120,7 +124,7 @@ impl Ord for SinglePuzzle {
     }
 }
 
-impl SinglePuzzle{
+impl SinglePuzzle {
     pub fn get_scramble(&self) -> Scramble {
         match &self.scramble {
             Some(scramble) => scramble.clone(),
@@ -129,19 +133,20 @@ impl SinglePuzzle{
     }
 
     fn new_solved(with_opposite_move: bool) -> Self {
-        Self { scramble: None, slots: (0..=23).collect(), colors: (0..=23).map(get_color).collect(), with_opposite_move }
+        Self {
+            scramble: None,
+            slots: (0..=23).collect(),
+            colors: (0..=23).map(get_color).collect(),
+            with_opposite_move,
+        }
     }
 
     fn new_scrambled(scramble: Scramble, with_opposite_move: bool) -> Self {
-        let mut puzzle = SinglePuzzle{
+        let mut puzzle = SinglePuzzle {
             scramble: Some(scramble.clone()),
             slots: vec![
-                0,1,2,3,
-                4,5,6,7,
-                8,9,10,11,
-                12,13,14,15,
-                16,17,18,19,
-                20,21,22,23
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+                23,
             ],
             colors: (0..=23).map(get_color).collect(),
             with_opposite_move,
@@ -207,7 +212,8 @@ impl SinglePuzzle{
                         self.slots[18] = self.slots[16];
                         self.slots[16] = self.slots[17];
                         self.slots[17] = self.slots[21];
-                        self.slots[21] = first_one;                    }
+                        self.slots[21] = first_one;
+                    }
                     Direction::CounterClockwise => {
                         let first_one = self.slots[20];
                         self.slots[20] = self.slots[21];
@@ -241,10 +247,10 @@ impl SinglePuzzle{
                         self.slots[16] = first_one;
                     }
                 }
-            },
+            }
             Face::TopRight => {
                 // Apply top-right move
-                match mv.direction  {
+                match mv.direction {
                     Direction::Clockwise => {
                         let first_one = self.slots[0];
                         self.slots[0] = self.slots[5];
@@ -264,7 +270,7 @@ impl SinglePuzzle{
                         self.slots[5] = first_one;
                     }
                 }
-            },
+            }
             Face::Right => {
                 // Apply right move
                 match mv.direction {
@@ -287,7 +293,7 @@ impl SinglePuzzle{
                         self.slots[3] = first_one;
                     }
                 }
-            },
+            }
             Face::BottomRight => {
                 // Apply bottom-right move
                 match mv.direction {
@@ -299,7 +305,7 @@ impl SinglePuzzle{
                         self.slots[11] = self.slots[10];
                         self.slots[10] = self.slots[8];
                         self.slots[8] = first_one;
-                    },
+                    }
                     Direction::CounterClockwise => {
                         let first_one = self.slots[9];
                         self.slots[9] = self.slots[8];
@@ -315,13 +321,13 @@ impl SinglePuzzle{
     }
 
     pub fn get_solved_states(with_opposite_move: bool) -> Vec<Self> {
-        let top_area = permutations([0,4,5,23].to_vec()).into_iter().take(4);
-        let top_right_area = permutations([1,2,3,6].to_vec()).into_iter().take(4);
-        let bottom_right_area = permutations([7,8,9,10].to_vec()).into_iter().take(4);
-        let bottom_area = permutations([11,12,13,14].to_vec()).into_iter().take(4);
-        let bottom_left_area = permutations([15,16,17,18].to_vec()).into_iter().take(4);
-        let top_left_area = permutations([19,20,21,22].to_vec()).into_iter().take(4);
-        
+        let top_area = permutations([0, 4, 5, 23].to_vec()).into_iter().take(4);
+        let top_right_area = permutations([1, 2, 3, 6].to_vec()).into_iter().take(4);
+        let bottom_right_area = permutations([7, 8, 9, 10].to_vec()).into_iter().take(4);
+        let bottom_area = permutations([11, 12, 13, 14].to_vec()).into_iter().take(4);
+        let bottom_left_area = permutations([15, 16, 17, 18].to_vec()).into_iter().take(4);
+        let top_left_area = permutations([19, 20, 21, 22].to_vec()).into_iter().take(4);
+
         let mut results = Vec::new();
         for tp in top_area {
             for trp in top_right_area.clone() {
@@ -347,10 +353,10 @@ impl SinglePuzzle{
         results
     }
 
-    fn apply_cycle(&mut self, nums: Vec<u8>){
+    fn apply_cycle(&mut self, nums: Vec<u8>) {
         let first_one = nums[0];
-        for i in 0..nums.len()-1{
-            self.slots[nums[i] as usize] = nums[i+1];
+        for i in 0..nums.len() - 1 {
+            self.slots[nums[i] as usize] = nums[i + 1];
         }
         self.slots[*nums.last().unwrap() as usize] = first_one;
     }
@@ -376,7 +382,14 @@ pub fn permutations(input: Vec<u8>) -> Vec<Vec<u8>> {
 }
 
 fn get_all_moves() -> Vec<Move> {
-    let all_faces = [Face::TopLeft, Face::Left, Face::BottomLeft, Face::TopRight, Face::Right, Face::BottomRight];
+    let all_faces = [
+        Face::TopLeft,
+        Face::Left,
+        Face::BottomLeft,
+        Face::TopRight,
+        Face::Right,
+        Face::BottomRight,
+    ];
     let all_directions = [Direction::Clockwise, Direction::CounterClockwise];
     let mut all_moves = Vec::new();
     for face in all_faces.iter() {
@@ -388,7 +401,14 @@ fn get_all_moves() -> Vec<Move> {
 }
 
 fn get_random_scramble(num_moves: usize) -> Scramble {
-    let all_faces = [Face::TopLeft, Face::Left, Face::BottomLeft, Face::TopRight, Face::Right, Face::BottomRight];
+    let all_faces = [
+        Face::TopLeft,
+        Face::Left,
+        Face::BottomLeft,
+        Face::TopRight,
+        Face::Right,
+        Face::BottomRight,
+    ];
     let all_directions = [Direction::Clockwise, Direction::CounterClockwise];
     let mut rng = thread_rng();
     let mut scramble = Vec::new();
@@ -400,11 +420,11 @@ fn get_random_scramble(num_moves: usize) -> Scramble {
     Scramble { moves: scramble }
 }
 
-fn get_color(num: u8) -> u8{
+fn get_color(num: u8) -> u8 {
     match num {
-        0 | 4 | 5 | 23 => 0, // white
-        1 | 2 | 3 | 6 => 1, // red
-        7 | 8 | 9 | 10 => 2, // blue
+        0 | 4 | 5 | 23 => 0,    // white
+        1 | 2 | 3 | 6 => 1,     // red
+        7 | 8 | 9 | 10 => 2,    // blue
         11 | 12 | 13 | 14 => 3, // orange
         15 | 16 | 17 | 18 => 4, // green
         19 | 20 | 21 | 22 => 5, // yellow
@@ -445,14 +465,18 @@ struct ReachableStates {
 }
 
 impl ReachableStates {
-    fn new(depth: usize, puzzle: SinglePuzzle) -> Self {
-        let batch_size = 1000; // You can adjust this value as needed
+    fn new(depth: usize, puzzle: SinglePuzzle, batch_size: usize) -> Self {
         let mut reachable_states = Self {
             _depth: depth,
             batch_size,
             batches: Vec::new(),
         };
-        reachable_states.compute_reachable(depth, &get_all_moves(), Scramble { moves: Vec::new() }, puzzle);
+        reachable_states.compute_reachable(
+            depth,
+            &get_all_moves(),
+            Scramble { moves: Vec::new() },
+            puzzle,
+        );
         reachable_states
     }
 
@@ -469,7 +493,13 @@ impl ReachableStates {
         }
     }
 
-    fn compute_reachable(&mut self, depth: usize, all_moves: &Vec<Move>, scramble: Scramble, puzzle: SinglePuzzle) {
+    fn compute_reachable(
+        &mut self,
+        depth: usize,
+        all_moves: &Vec<Move>,
+        scramble: Scramble,
+        puzzle: SinglePuzzle,
+    ) {
         for mv in all_moves.iter() {
             if depth == 0 {
                 let mut cloned_puzzle = puzzle.clone();
@@ -496,33 +526,26 @@ impl ReachableStates {
 
     fn overlaps(&self, other: &Self) -> Option<Scramble> {
         // Efficient batch-wise search since batches are sorted
-        let mut i_batch = 0;
-        let mut j_batch = 0;
         let mut i = 0;
         let mut j = 0;
-
-        while i_batch < self.batches.len() && j_batch < other.batches.len() {
-            let batch_a = &self.batches[i_batch];
-            let batch_b = &other.batches[j_batch];
-            i = 0;
-            j = 0;
-            while i < batch_a.states.len() && j < batch_b.states.len() {
-                match batch_a.states[i].cmp(&batch_b.states[j]) {
-                    std::cmp::Ordering::Equal => {
-                        let first_part_of_scramble = batch_a.states[i].get_scramble();
-                        let second_part_of_scramble = batch_b.states[j].get_scramble().invert();
-                        return Some(first_part_of_scramble.concat(second_part_of_scramble));
+        // do two nested for loops over all batches
+        for i_batch in 0..self.batches.len() {
+            for j_batch in 0..other.batches.len() {
+                let batch_a = &self.batches[i_batch];
+                let batch_b = &other.batches[j_batch];
+                i = 0;
+                j = 0;
+                while i < batch_a.states.len() && j < batch_b.states.len() {
+                    match batch_a.states[i].cmp(&batch_b.states[j]) {
+                        std::cmp::Ordering::Equal => {
+                            let first_part_of_scramble = batch_a.states[i].get_scramble();
+                            let second_part_of_scramble = batch_b.states[j].get_scramble().invert();
+                            return Some(first_part_of_scramble.concat(second_part_of_scramble));
+                        }
+                        std::cmp::Ordering::Less => i += 1,
+                        std::cmp::Ordering::Greater => j += 1,
                     }
-                    std::cmp::Ordering::Less => i += 1,
-                    std::cmp::Ordering::Greater => j += 1,
                 }
-            }
-            // Move to next batch
-            if i == batch_a.states.len() {
-                i_batch += 1;
-            }
-            if j == batch_b.states.len() {
-                j_batch += 1;
             }
         }
         None
@@ -532,22 +555,26 @@ impl ReachableStates {
 #[allow(unreachable_code)]
 fn main() {
     // print the size of Direction, Face and Move in bits
-    println!("Size of Direction: {}", std::mem::size_of::<Direction>() * 8);
+    println!(
+        "Size of Direction: {}",
+        std::mem::size_of::<Direction>() * 8
+    );
     println!("Size of Face: {}", std::mem::size_of::<Face>() * 8);
     println!("Size of Move: {}", std::mem::size_of::<Move>() * 8);
     println!("Size of usize: {}", std::mem::size_of::<usize>() * 8);
     println!("Size of u8: {}", std::mem::size_of::<u8>() * 8);
     let with_opposite_move = true;
+    let batch_size = 1_000_000;
     let scramble = get_random_scramble(50);
     println!("Scramble: {:?}", scramble);
     let scrambled_puzzle = SinglePuzzle::new_scrambled(scramble.clone(), with_opposite_move);
     let depth = 7;
-    let reachable_states = ReachableStates::new(depth, scrambled_puzzle);
+    let reachable_states = ReachableStates::new(depth, scrambled_puzzle, batch_size);
     reachable_states.print_first_5();
     let all_solved_states = SinglePuzzle::get_solved_states(with_opposite_move);
-    for (i, solved_state) in all_solved_states.iter().enumerate(){
+    for (i, solved_state) in all_solved_states.iter().enumerate() {
         println!("Checking solved state {}...", i);
-        let reachable_from_solved = ReachableStates::new(depth, solved_state.clone());
+        let reachable_from_solved = ReachableStates::new(depth, solved_state.clone(), batch_size);
         let solve = reachable_from_solved.overlaps(&reachable_states);
         match solve {
             Some(solution) => {
@@ -558,7 +585,9 @@ fn main() {
                 println!();
                 return;
             }
-            None => { println!("No solution found for this solved state."); }
+            None => {
+                println!("No solution found for this solved state.");
+            }
         }
         break;
     }
