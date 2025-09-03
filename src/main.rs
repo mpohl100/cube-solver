@@ -1,15 +1,15 @@
-
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 
+// make face be stored with 3 bits
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 enum Face{
-    TopLeft,
-    Left,
-    BottomLeft,
-    TopRight,
-    Right,
-    BottomRight,
+    TopLeft = 0b001,
+    Left = 0b010,
+    BottomLeft = 0b100,
+    TopRight = 0b011,
+    Right = 0b101,
+    BottomRight = 0b110,
 }
 
 fn to_string_face(face: Face) -> &'static str {
@@ -23,10 +23,11 @@ fn to_string_face(face: Face) -> &'static str {
     }
 }
 
+// make direction stored as 1 bit
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 enum Direction{
-    Clockwise,
-    CounterClockwise
+    Clockwise = 0b1,
+    CounterClockwise = 0b0
 }
 
 fn to_string_direction(direction: Direction) -> &'static str {
@@ -411,22 +412,60 @@ fn get_color(num: u8) -> u8{
     }
 }
 
+struct Batch {
+    batch_size: usize,
+    states: Vec<SinglePuzzle>,
+}
+
+impl Batch {
+    fn new(batch_size: usize) -> Self {
+        Batch {
+            batch_size,
+            states: Vec::with_capacity(batch_size),
+        }
+    }
+
+    fn is_full(&self) -> bool {
+        self.states.len() >= self.batch_size
+    }
+
+    fn add_state(&mut self, state: SinglePuzzle) {
+        self.states.push(state);
+    }
+
+    fn sort_states(&mut self) {
+        self.states.sort();
+    }
+}
+
 struct ReachableStates {
     _depth: usize,
-    states: Vec<SinglePuzzle>,
+    batch_size: usize,
+    batches: Vec<Batch>,
 }
 
 impl ReachableStates {
     fn new(depth: usize, puzzle: SinglePuzzle) -> Self {
-        let mut reachable_states = Self { _depth: depth, states: Vec::new() };
+        let batch_size = 1000; // You can adjust this value as needed
+        let mut reachable_states = Self {
+            _depth: depth,
+            batch_size,
+            batches: Vec::new(),
+        };
         reachable_states.compute_reachable(depth, &get_all_moves(), Scramble { moves: Vec::new() }, puzzle);
-        reachable_states.states.sort();
         reachable_states
     }
 
     fn print_first_5(&self) {
-        for state in self.states.iter().take(5) {
-            println!("{:?}", state);
+        let mut count = 0;
+        for batch in &self.batches {
+            for state in &batch.states {
+                println!("{:?}", state);
+                count += 1;
+                if count >= 5 {
+                    return;
+                }
+            }
         }
     }
 
@@ -437,7 +476,16 @@ impl ReachableStates {
                 let mut new_scramble = scramble.clone();
                 new_scramble.moves.push(mv.clone());
                 cloned_puzzle.apply_scramble(new_scramble.clone());
-                self.states.push(cloned_puzzle);
+
+                // Add to current batch, create/sort new batch if needed
+                if self.batches.is_empty() || self.batches.last().unwrap().is_full() {
+                    self.batches.push(Batch::new(self.batch_size));
+                }
+                let batch = self.batches.last_mut().unwrap();
+                batch.add_state(cloned_puzzle);
+                if batch.is_full() {
+                    batch.sort_states();
+                }
             } else {
                 let mut new_scramble = scramble.clone();
                 new_scramble.moves.push(mv.clone());
@@ -446,32 +494,54 @@ impl ReachableStates {
         }
     }
 
-    fn overlaps(&self, other: &Self) -> Option<Scramble>{
-        // todo implement by making use of the facts that the states are sorted already in most efficient time
+    fn overlaps(&self, other: &Self) -> Option<Scramble> {
+        // Efficient batch-wise search since batches are sorted
+        let mut i_batch = 0;
+        let mut j_batch = 0;
         let mut i = 0;
         let mut j = 0;
-        while i < self.states.len() && j < other.states.len() {
-            match self.states[i].cmp(&other.states[j]) {
-                std::cmp::Ordering::Equal => {
-                    let first_part_of_scramble = self.states[i].get_scramble();
-                    let second_part_of_scramble = other.states[j].get_scramble().invert();
 
-                    return Some(first_part_of_scramble.concat(second_part_of_scramble));
+        while i_batch < self.batches.len() && j_batch < other.batches.len() {
+            let batch_a = &self.batches[i_batch];
+            let batch_b = &other.batches[j_batch];
+            i = 0;
+            j = 0;
+            while i < batch_a.states.len() && j < batch_b.states.len() {
+                match batch_a.states[i].cmp(&batch_b.states[j]) {
+                    std::cmp::Ordering::Equal => {
+                        let first_part_of_scramble = batch_a.states[i].get_scramble();
+                        let second_part_of_scramble = batch_b.states[j].get_scramble().invert();
+                        return Some(first_part_of_scramble.concat(second_part_of_scramble));
+                    }
+                    std::cmp::Ordering::Less => i += 1,
+                    std::cmp::Ordering::Greater => j += 1,
                 }
-                std::cmp::Ordering::Less => i += 1,
-                std::cmp::Ordering::Greater => j += 1,
+            }
+            // Move to next batch
+            if i == batch_a.states.len() {
+                i_batch += 1;
+            }
+            if j == batch_b.states.len() {
+                j_batch += 1;
             }
         }
         None
     }
 }
 
+#[allow(unreachable_code)]
 fn main() {
+    // print the size of Direction, Face and Move in bits
+    println!("Size of Direction: {}", std::mem::size_of::<Direction>() * 8);
+    println!("Size of Face: {}", std::mem::size_of::<Face>() * 8);
+    println!("Size of Move: {}", std::mem::size_of::<Move>() * 8);
+    println!("Size of usize: {}", std::mem::size_of::<usize>() * 8);
+    println!("Size of u8: {}", std::mem::size_of::<u8>() * 8);
     let with_opposite_move = true;
     let scramble = get_random_scramble(50);
     println!("Scramble: {:?}", scramble);
     let scrambled_puzzle = SinglePuzzle::new_scrambled(scramble.clone(), with_opposite_move);
-    let depth = 6;
+    let depth = 7;
     let reachable_states = ReachableStates::new(depth, scrambled_puzzle);
     reachable_states.print_first_5();
     let all_solved_states = SinglePuzzle::get_solved_states(with_opposite_move);
