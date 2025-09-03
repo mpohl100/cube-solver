@@ -130,7 +130,12 @@ impl SinglePuzzle{
         for mv in scramble.moves {
             puzzle.apply_move(mv);
         }
+        puzzle.deduce_colors();
         puzzle
+    }
+
+    fn deduce_colors(&mut self) {
+        self.colors = self.slots.iter().map(|&num| get_color(num)).collect();
     }
 
     fn apply_scramble(&mut self, scramble: Scramble) {
@@ -308,6 +313,7 @@ impl SinglePuzzle{
                                 puzzle.apply_cycle(bp.clone());
                                 puzzle.apply_cycle(blp.clone());
                                 puzzle.apply_cycle(tlp.clone());
+                                puzzle.deduce_colors();
                                 results.push(puzzle);
                             }
                         }
@@ -442,7 +448,7 @@ fn main() {
     let scramble = get_random_scramble(50);
     println!("Scramble: {:?}", scramble);
     let scrambled_puzzle = SinglePuzzle::new_scrambled(scramble.clone());
-    let depth = 7;
+    let depth = 6;
     let reachable_states = ReachableStates::new(depth, scrambled_puzzle);
     reachable_states.print_first_5();
     let all_solved_states = SinglePuzzle::get_solved_states();
