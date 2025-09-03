@@ -590,11 +590,14 @@ fn main() {
     let with_opposite_move = false;
     let scramble = get_random_scramble(50);
     for i in (7..13) {
-        find_solution(i, scramble.clone(), with_opposite_move);
+        let found_solution = find_solution(i, scramble.clone(), with_opposite_move);
+        if found_solution {
+            break;
+        }
     }
 }
 
-fn find_solution(depth: usize, scramble: Scramble, with_opposite_move: bool) {
+fn find_solution(depth: usize, scramble: Scramble, with_opposite_move: bool) -> bool {
     let batch_size = 1_000_000;
     let store_directory = "reachable_batches".to_string();
     println!("Depth: {}, Scramble: {:?}", depth, scramble);
@@ -617,7 +620,7 @@ fn find_solution(depth: usize, scramble: Scramble, with_opposite_move: bool) {
                 // Clean up batch directories
                 std::fs::remove_dir_all(&store_directory).ok();
                 std::fs::remove_dir_all(&solved_store_directory).ok();
-                return;
+                return true;
             }
             None => {
                 println!("No solution found for this solved state.");
@@ -629,6 +632,7 @@ fn find_solution(depth: usize, scramble: Scramble, with_opposite_move: bool) {
     }
     // Clean up batch directory for scrambled puzzle
     std::fs::remove_dir_all(&store_directory).ok();
+    return false;
 }
 
 fn get_all_moves() -> Vec<Move> {
