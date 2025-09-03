@@ -419,11 +419,12 @@ impl ReachableStates {
 fn main() {
     let scramble = get_random_scramble(50);
     let scrambled_puzzle = SinglePuzzle::new_scrambled(scramble.clone());
-    let depth = 8;
+    let depth = 6;
     let reachable_states = ReachableStates::new(depth, scrambled_puzzle);
     let all_solved_states = SinglePuzzle::get_solved_states();
-    for solved_state in all_solved_states{
-        let reachable_from_solved = ReachableStates::new(depth, solved_state);
+    for (i, solved_state) in all_solved_states.iter().enumerate(){
+        println!("Checking solved state {}...", i);
+        let reachable_from_solved = ReachableStates::new(depth, solved_state.clone());
         let solve = reachable_from_solved.overlaps(&reachable_states);
         match solve {
             Some(solution) => {
