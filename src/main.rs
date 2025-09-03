@@ -367,7 +367,7 @@ impl SinglePuzzle {
     fn from_scramble_and_slots(scramble: Option<Scramble>, slots: Vec<u8>, with_opposite_move: bool) -> Self {
         let mut puzzle = SinglePuzzle {
             scramble,
-            slots,
+            slots: slots.clone(),
             colors: vec![0; slots.len()],
             with_opposite_move,
         };
@@ -596,19 +596,24 @@ fn main() {
     println!("Size of Move: {}", std::mem::size_of::<Move>() * 8);
     println!("Size of usize: {}", std::mem::size_of::<usize>() * 8);
     println!("Size of u8: {}", std::mem::size_of::<u8>() * 8);
+
+    find_solution(7);
+}
+
+fn find_solution(depth: usize) {
     let with_opposite_move = true;
     let batch_size = 1_000_000;
     let store_directory = "reachable_batches".to_string();
     let scramble = get_random_scramble(50);
     println!("Scramble: {:?}", scramble);
     let scrambled_puzzle = SinglePuzzle::new_scrambled(scramble.clone(), with_opposite_move);
-    let depth = 7;
     let reachable_states = ReachableStates::new(depth, scrambled_puzzle, batch_size, store_directory.clone());
     reachable_states.print_first_5(with_opposite_move);
     let all_solved_states = SinglePuzzle::get_solved_states(with_opposite_move);
     for (i, solved_state) in all_solved_states.iter().enumerate() {
         println!("Checking solved state {}...", i);
-        let reachable_from_solved = ReachableStates::new(depth, solved_state.clone(), batch_size, store_directory.clone());
+        let solved_store_directory = format!("{}_solved_{}", store_directory, i);
+        let reachable_from_solved = ReachableStates::new(depth, solved_state.clone(), batch_size, solved_store_directory.clone());
         let solve = reachable_from_solved.overlaps(&reachable_states, with_opposite_move);
         match solve {
             Some(solution) => {
@@ -617,14 +622,21 @@ fn main() {
                     print!("{}", mv.to_string());
                 }
                 println!();
+                // Clean up batch directories
+                std::fs::remove_dir_all(&store_directory).ok();
+                std::fs::remove_dir_all(&solved_store_directory).ok();
                 return;
             }
             None => {
                 println!("No solution found for this solved state.");
             }
         }
+        // Clean up batch directories for this solved state
+        std::fs::remove_dir_all(&solved_store_directory).ok();
         break;
     }
+    // Clean up batch directory for scrambled puzzle
+    std::fs::remove_dir_all(&store_directory).ok();
 }
 
 fn get_all_moves() -> Vec<Move> {
