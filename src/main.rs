@@ -1,7 +1,7 @@
 use rand::seq::SliceRandom;
 use rand::thread_rng;
-use std::fs::{File, create_dir_all};
-use std::io::{BufWriter, BufReader, Write, Read};
+use std::fs::{create_dir_all, File};
+use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::Path;
 
 // make face be stored with 3 bits
@@ -364,7 +364,11 @@ impl SinglePuzzle {
         self.slots[*nums.last().unwrap() as usize] = first_one;
     }
 
-    fn from_scramble_and_slots(scramble: Option<Scramble>, slots: Vec<u8>, with_opposite_move: bool) -> Self {
+    fn from_scramble_and_slots(
+        scramble: Option<Scramble>,
+        slots: Vec<u8>,
+        with_opposite_move: bool,
+    ) -> Self {
         let mut puzzle = SinglePuzzle {
             scramble,
             slots: slots.clone(),
@@ -411,7 +415,9 @@ impl Batch {
             let moves_len = scramble.moves.len() as u8;
             writer.write_all(&[moves_len]).unwrap();
             for mv in scramble.moves.iter() {
-                writer.write_all(&[mv.face as u8, mv.direction as u8]).unwrap();
+                writer
+                    .write_all(&[mv.face as u8, mv.direction as u8])
+                    .unwrap();
             }
             for slot in puzzle.slots.iter() {
                 writer.write_all(&[*slot]).unwrap();
@@ -459,8 +465,16 @@ impl Batch {
             if i < buf.len() && buf[i] == b'\n' {
                 i += 1;
             }
-            let scramble = if moves.is_empty() { None } else { Some(Scramble { moves }) };
-            states.push(SinglePuzzle::from_scramble_and_slots(scramble, slots, with_opposite_move));
+            let scramble = if moves.is_empty() {
+                None
+            } else {
+                Some(Scramble { moves })
+            };
+            states.push(SinglePuzzle::from_scramble_and_slots(
+                scramble,
+                slots,
+                with_opposite_move,
+            ));
         }
         Batch {
             batch_size: states.len(),
@@ -478,7 +492,13 @@ struct ReachableStates {
 }
 
 impl ReachableStates {
-    fn new(depth: usize, puzzle: SinglePuzzle, batch_size: usize, store_directory: String, with_opposite_move: bool) -> Self {
+    fn new(
+        depth: usize,
+        puzzle: SinglePuzzle,
+        batch_size: usize,
+        store_directory: String,
+        with_opposite_move: bool,
+    ) -> Self {
         create_dir_all(&store_directory).expect("Failed to create store directory");
         let mut batch_files = Vec::new();
         let mut batch = Batch::new(batch_size);
@@ -522,12 +542,12 @@ impl ReachableStates {
         }
     }
 
-    fn sort_batches(&mut self){
+    fn sort_batches(&mut self) {
         // load to neighbouring batches at the same time in memory and sort them all, then persist both batches
-        for i in 0..self.batch_files.len()-1 {
+        for i in 0..self.batch_files.len() - 1 {
             let batch_path_a = &self.batch_files[i];
             let batch_a = Batch::load_from_file(batch_path_a, self.with_opposite_move);
-            let batch_path_b = &self.batch_files[i+1];
+            let batch_path_b = &self.batch_files[i + 1];
             let batch_b = Batch::load_from_file(batch_path_b, self.with_opposite_move);
             let states_a = batch_a.states;
             let states_b = batch_b.states;
@@ -535,9 +555,15 @@ impl ReachableStates {
             merged_states.extend(states_a);
             merged_states.extend(states_b);
             merged_states.sort();
-            let batch = Batch { states: merged_states[0..batch_a.batch_size].to_vec(), batch_size: batch_a.batch_size };
+            let batch = Batch {
+                states: merged_states[0..batch_a.batch_size].to_vec(),
+                batch_size: batch_a.batch_size,
+            };
             batch.save_to_file(&batch_path_a);
-            let batch = Batch { states: merged_states[batch_a.batch_size..].to_vec(), batch_size: batch_b.batch_size };
+            let batch = Batch {
+                states: merged_states[batch_a.batch_size..].to_vec(),
+                batch_size: batch_b.batch_size,
+            };
             batch.save_to_file(&batch_path_b);
         }
     }
@@ -585,23 +611,35 @@ impl ReachableStates {
 
     fn overlaps(&self, other: &Self, with_opposite_move: bool) -> Option<Scramble> {
         // Only load two batches at a time from disk
-        for batch_a_path in &self.batch_files {
+        // use the same while loop approach with indeces, the batches are now sorted
+        let mut i_batch = 0;
+        let mut j_batch = 0;
+        let mut i = 0;
+        let mut j = 0;
+        while i_batch < self.batch_files.len() && j_batch < other.batch_files.len() {
+            let batch_a_path = &self.batch_files[i_batch];
             let batch_a = Batch::load_from_file(batch_a_path, with_opposite_move);
-            for batch_b_path in &other.batch_files {
-                let batch_b = Batch::load_from_file(batch_b_path, with_opposite_move);
-                let mut i = 0;
-                let mut j = 0;
-                while i < batch_a.states.len() && j < batch_b.states.len() {
-                    match batch_a.states[i].cmp(&batch_b.states[j]) {
-                        std::cmp::Ordering::Equal => {
-                            let first_part_of_scramble = batch_a.states[i].get_scramble();
-                            let second_part_of_scramble = batch_b.states[j].get_scramble().invert();
-                            return Some(first_part_of_scramble.concat(second_part_of_scramble));
-                        }
-                        std::cmp::Ordering::Less => i += 1,
-                        std::cmp::Ordering::Greater => j += 1,
+            let batch_b_path = &other.batch_files[j_batch];
+            let batch_b = Batch::load_from_file(batch_b_path, with_opposite_move);
+            while i < batch_a.states.len() && j < batch_b.states.len() {
+                match batch_a.states[i].cmp(&batch_b.states[j]) {
+                    std::cmp::Ordering::Equal => {
+                        let first_part_of_scramble = batch_a.states[i].get_scramble();
+                        let second_part_of_scramble = batch_b.states[j].get_scramble().invert();
+                        return Some(first_part_of_scramble.concat(second_part_of_scramble));
                     }
+                    std::cmp::Ordering::Less => i += 1,
+                    std::cmp::Ordering::Greater => j += 1,
                 }
+            }
+            // increment i_batch and j_batch if necessary
+            if i == batch_a.states.len() {
+                i_batch += 1;
+                i = 0;
+            }
+            if j == batch_b.states.len() {
+                j_batch += 1;
+                j = 0;
             }
         }
         None
@@ -625,13 +663,25 @@ fn find_solution(depth: usize, scramble: Scramble, with_opposite_move: bool) -> 
     let store_directory = "reachable_batches".to_string();
     println!("Depth: {}, Scramble: {:?}", depth, scramble);
     let scrambled_puzzle = SinglePuzzle::new_scrambled(scramble.clone(), with_opposite_move);
-    let reachable_states = ReachableStates::new(depth, scrambled_puzzle, batch_size, store_directory.clone(), with_opposite_move);
+    let reachable_states = ReachableStates::new(
+        depth,
+        scrambled_puzzle,
+        batch_size,
+        store_directory.clone(),
+        with_opposite_move,
+    );
     reachable_states.print_first_5(with_opposite_move);
     let all_solved_states = SinglePuzzle::get_solved_states(with_opposite_move);
     for (i, solved_state) in all_solved_states.iter().enumerate() {
         println!("Checking solved state {}...", i);
         let solved_store_directory = format!("{}_solved_{}", store_directory, i);
-        let reachable_from_solved = ReachableStates::new(depth, solved_state.clone(), batch_size, solved_store_directory.clone(), with_opposite_move);
+        let reachable_from_solved = ReachableStates::new(
+            depth,
+            solved_state.clone(),
+            batch_size,
+            solved_store_directory.clone(),
+            with_opposite_move,
+        );
         let solve = reachable_from_solved.overlaps(&reachable_states, with_opposite_move);
         match solve {
             Some(solution) => {
