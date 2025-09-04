@@ -2,7 +2,6 @@ use rand::seq::SliceRandom;
 use rand::thread_rng;
 use std::fs::{create_dir_all, File};
 use std::io::{BufReader, BufWriter, Read, Write};
-use std::path::Path;
 
 // make face be stored with 3 bits
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -500,7 +499,7 @@ impl ReachableStates {
         with_opposite_move: bool,
     ) -> Self {
         create_dir_all(&store_directory).expect("Failed to create store directory");
-        let mut batch_files = Vec::new();
+        let batch_files = Vec::new();
         let mut batch = Batch::new(batch_size);
         let mut batch_count = 0;
         let mut reachable_states = Self {
@@ -650,7 +649,7 @@ impl ReachableStates {
 fn main() {
     let with_opposite_move = false;
     let scramble = get_random_scramble(50);
-    for i in (7..13) {
+    for i in 7..13 {
         let found_solution = find_solution(i, scramble.clone(), with_opposite_move);
         if found_solution {
             break;
