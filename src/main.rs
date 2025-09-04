@@ -474,10 +474,11 @@ struct ReachableStates {
     batch_size: usize,
     batch_files: Vec<String>,
     store_directory: String,
+    with_opposite_move: bool,
 }
 
 impl ReachableStates {
-    fn new(depth: usize, puzzle: SinglePuzzle, batch_size: usize, store_directory: String) -> Self {
+    fn new(depth: usize, puzzle: SinglePuzzle, batch_size: usize, store_directory: String, with_opposite_move: bool) -> Self {
         create_dir_all(&store_directory).expect("Failed to create store directory");
         let mut batch_files = Vec::new();
         let mut batch = Batch::new(batch_size);
@@ -487,6 +488,7 @@ impl ReachableStates {
             batch_size,
             batch_files,
             store_directory: store_directory.clone(),
+            with_opposite_move,
         };
         reachable_states.compute_reachable(
             depth,
@@ -520,6 +522,26 @@ impl ReachableStates {
         }
     }
 
+    fn sort_batches(&mut self){
+        // load to neighbouring batches at the same time in memory and sort them all, then persist both batches
+        for i in 0..self.batch_files.len()-1 {
+            let batch_path_a = &self.batch_files[i];
+            let batch_a = Batch::load_from_file(batch_path_a, self.with_opposite_move);
+            let batch_path_b = &self.batch_files[i+1];
+            let batch_b = Batch::load_from_file(batch_path_b, self.with_opposite_move);
+            let states_a = batch_a.states;
+            let states_b = batch_b.states;
+            let mut merged_states = Vec::new();
+            merged_states.extend(states_a);
+            merged_states.extend(states_b);
+            merged_states.sort();
+            let batch = Batch { states: merged_states[0..batch_a.batch_size].to_vec(), batch_size: batch_a.batch_size };
+            batch.save_to_file(&batch_path_a);
+            let batch = Batch { states: merged_states[batch_a.batch_size..].to_vec(), batch_size: batch_b.batch_size };
+            batch.save_to_file(&batch_path_b);
+        }
+    }
+
     fn compute_reachable(
         &mut self,
         depth: usize,
@@ -542,6 +564,7 @@ impl ReachableStates {
                     let batch_path = format!("{}/batch_{}.bin", self.store_directory, *batch_count);
                     batch.save_to_file(&batch_path);
                     self.batch_files.push(batch_path);
+                    self.sort_batches();
                     *batch = Batch::new(self.batch_size);
                     *batch_count += 1;
                 }
@@ -602,13 +625,13 @@ fn find_solution(depth: usize, scramble: Scramble, with_opposite_move: bool) -> 
     let store_directory = "reachable_batches".to_string();
     println!("Depth: {}, Scramble: {:?}", depth, scramble);
     let scrambled_puzzle = SinglePuzzle::new_scrambled(scramble.clone(), with_opposite_move);
-    let reachable_states = ReachableStates::new(depth, scrambled_puzzle, batch_size, store_directory.clone());
+    let reachable_states = ReachableStates::new(depth, scrambled_puzzle, batch_size, store_directory.clone(), with_opposite_move);
     reachable_states.print_first_5(with_opposite_move);
     let all_solved_states = SinglePuzzle::get_solved_states(with_opposite_move);
     for (i, solved_state) in all_solved_states.iter().enumerate() {
         println!("Checking solved state {}...", i);
         let solved_store_directory = format!("{}_solved_{}", store_directory, i);
-        let reachable_from_solved = ReachableStates::new(depth, solved_state.clone(), batch_size, solved_store_directory.clone());
+        let reachable_from_solved = ReachableStates::new(depth, solved_state.clone(), batch_size, solved_store_directory.clone(), with_opposite_move);
         let solve = reachable_from_solved.overlaps(&reachable_states, with_opposite_move);
         match solve {
             Some(solution) => {
