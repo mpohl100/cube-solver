@@ -565,6 +565,7 @@ impl ReachableStates {
             let batch_path = format!("{}/batch_{}.bin", store_directory, batch_count);
             batch.save_to_file(&batch_path);
             reachable_states.batch_files.push(batch_path);
+            reachable_states.sort_batches();
         }
         reachable_states
     }
@@ -585,7 +586,8 @@ impl ReachableStates {
 
     fn sort_batches(&mut self) {
         // load to neighbouring batches at the same time in memory and sort them all, then persist both batches
-        for i in 0..self.batch_files.len() - 1 {
+        for j in 0..self.batch_files.len() - 1 {
+            let i = self.batch_files.len() - 2 - j;
             let batch_path_a = &self.batch_files[i];
             let batch_a = Batch::load_from_file(batch_path_a, self.with_opposite_move);
             let batch_path_b = &self.batch_files[i + 1];
