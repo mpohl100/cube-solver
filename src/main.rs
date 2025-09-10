@@ -520,7 +520,7 @@ impl Batch {
 }
 
 struct ReachableStates {
-    _depth: usize,
+    depth: usize,
     batch_size: usize,
     batch_files: Vec<String>,
     store_directory: String,
@@ -542,7 +542,7 @@ impl ReachableStates {
         let mut batch = Batch::new(batch_size);
         let mut batch_count = 0;
         let mut reachable_states = Self {
-            _depth: depth,
+            depth,
             batch_size,
             batch_files,
             store_directory: store_directory.clone(),
@@ -642,7 +642,12 @@ impl ReachableStates {
                 }
             }
         }
-        for mv in all_moves.iter() {
+        for (i, mv) in all_moves.iter().enumerate() {
+            if depth == self.depth {
+                // log progress in %
+                let progress = (i as f64 / all_moves.len() as f64) * 100.0;
+                println!("Progress: {:.2}%", progress);
+            }
             if depth == 0 {
                 let mut cloned_puzzle = puzzle.clone();
                 let mut new_scramble = scramble.clone();
