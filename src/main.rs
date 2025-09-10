@@ -160,6 +160,19 @@ impl SinglePuzzle {
         puzzle
     }
 
+    pub fn calculate_score(&self) -> i64 {
+        let mut score = 0;
+        for (i, &color) in self.colors.iter().enumerate() {
+            let neighbours = calculate_neighbours(i as u8);
+            for &neighbour in neighbours.iter() {
+                if self.colors[neighbour as usize] == color {
+                    score += 1;
+                }
+            }
+        }
+        score
+    }
+
     fn deduce_colors(&mut self) {
         self.colors = self.slots.iter().map(|&num| get_color(num)).collect();
     }
@@ -497,6 +510,8 @@ impl ReachableStates {
         batch_size: usize,
         store_directory: String,
         with_opposite_move: bool,
+        num_score_weakens: usize,
+        improve: bool,
     ) -> Self {
         create_dir_all(&store_directory).expect("Failed to create store directory");
         let batch_files = Vec::new();
@@ -513,6 +528,9 @@ impl ReachableStates {
             depth,
             &get_all_moves(),
             Scramble { moves: Vec::new() },
+            vec![puzzle.calculate_score()],
+            num_score_weakens,
+            improve,
             puzzle,
             &mut batch,
             &mut batch_count,
@@ -572,10 +590,32 @@ impl ReachableStates {
         depth: usize,
         all_moves: &Vec<Move>,
         scramble: Scramble,
+        scores: Vec<i64>,
+        num_score_weakens: usize,
+        improve: bool,
         puzzle: SinglePuzzle,
         batch: &mut Batch,
         batch_count: &mut usize,
     ) {
+        if improve {
+            if scores.len() > num_score_weakens {
+                let current_score = puzzle.calculate_score();
+                let critical_score = scores[scores.len() - 1 - num_score_weakens];
+                // we want to improve, hence if the current score is less than the critical score, we stop
+                if current_score < critical_score {
+                    return;
+                }
+            }
+        } else {
+            if scores.len() > num_score_weakens {
+                let current_score = puzzle.calculate_score();
+                let critical_score = scores[scores.len() - 1 - num_score_weakens];
+                // we want to worsen, hence if the current score is more than the critical score, we stop
+                if current_score > critical_score {
+                    return;
+                }
+            }
+        }
         for mv in all_moves.iter() {
             if depth == 0 {
                 let mut cloned_puzzle = puzzle.clone();
@@ -596,10 +636,17 @@ impl ReachableStates {
             } else {
                 let mut new_scramble = scramble.clone();
                 new_scramble.moves.push(mv.clone());
+                let mut new_puzzle = puzzle.clone();
+                new_puzzle.apply_scramble(new_scramble.clone());
+                let mut new_scores = scores.clone();
+                new_scores.push(new_puzzle.calculate_score());
                 self.compute_reachable(
                     depth - 1,
                     all_moves,
                     new_scramble,
+                    new_scores,
+                    num_score_weakens,
+                    improve,
                     puzzle.clone(),
                     batch,
                     batch_count,
@@ -648,16 +695,23 @@ impl ReachableStates {
 #[allow(unreachable_code)]
 fn main() {
     let with_opposite_move = false;
+    let num_score_weakens = 4;
     let scramble = get_random_scramble(50);
     for i in 7..13 {
-        let found_solution = find_solution(i, scramble.clone(), with_opposite_move);
+        let found_solution =
+            find_solution(i, scramble.clone(), with_opposite_move, num_score_weakens);
         if found_solution {
             break;
         }
     }
 }
 
-fn find_solution(depth: usize, scramble: Scramble, with_opposite_move: bool) -> bool {
+fn find_solution(
+    depth: usize,
+    scramble: Scramble,
+    with_opposite_move: bool,
+    num_score_weakens: usize,
+) -> bool {
     let batch_size = 1_000_000;
     let store_directory = "reachable_batches".to_string();
     println!("Depth: {}, Scramble: {:?}", depth, scramble);
@@ -668,6 +722,8 @@ fn find_solution(depth: usize, scramble: Scramble, with_opposite_move: bool) -> 
         batch_size,
         store_directory.clone(),
         with_opposite_move,
+        num_score_weakens,
+        true,
     );
     reachable_states.print_first_5(with_opposite_move);
     let all_solved_states = SinglePuzzle::get_solved_states(with_opposite_move);
@@ -680,6 +736,8 @@ fn find_solution(depth: usize, scramble: Scramble, with_opposite_move: bool) -> 
             batch_size,
             solved_store_directory.clone(),
             with_opposite_move,
+            num_score_weakens,
+            false,
         );
         let solve = reachable_from_solved.overlaps(&reachable_states, with_opposite_move);
         match solve {
@@ -754,6 +812,36 @@ fn get_color(num: u8) -> u8 {
         11 | 12 | 13 | 14 => 3, // orange
         15 | 16 | 17 | 18 => 4, // green
         19 | 20 | 21 | 22 => 5, // yellow
+        _ => panic!("Invalid number"),
+    }
+}
+
+fn calculate_neighbours(num: u8) -> Vec<u8> {
+    match num {
+        0 => vec![1, 5],
+        1 => vec![0, 2],
+        2 => vec![1, 3, 6],
+        3 => vec![2, 4],
+        4 => vec![3, 5, 21],
+        5 => vec![0, 4, 23],
+        6 => vec![2, 7],
+        7 => vec![6, 8],
+        8 => vec![7, 9, 10],
+        9 => vec![3, 8, 13],
+        10 => vec![8, 11],
+        11 => vec![10, 12],
+        12 => vec![11, 13, 14],
+        13 => vec![9, 12, 17],
+        14 => vec![12, 15],
+        15 => vec![14, 16],
+        16 => vec![15, 17, 18],
+        17 => vec![13, 16, 21],
+        18 => vec![17, 19],
+        19 => vec![18, 21],
+        20 => vec![19, 21, 22],
+        21 => vec![4, 17, 20],
+        22 => vec![21, 23],
+        23 => vec![5, 22],
         _ => panic!("Invalid number"),
     }
 }
