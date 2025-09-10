@@ -692,14 +692,13 @@ impl ReachableStates {
     }
 }
 
-#[allow(unreachable_code)]
 fn main() {
     let with_opposite_move = false;
-    let num_score_weakens = 4;
+    let batch_size = 1_000_000;
+    let num_score_weakens = 3;
     let scramble = get_random_scramble(50);
-    for i in 7..13 {
-        let found_solution =
-            find_solution(i, scramble.clone(), with_opposite_move, num_score_weakens);
+    for i in 10..13 {
+        let found_solution = find_solution(i, scramble.clone(), with_opposite_move, batch_size, num_score_weakens);
         if found_solution {
             break;
         }
@@ -710,9 +709,9 @@ fn find_solution(
     depth: usize,
     scramble: Scramble,
     with_opposite_move: bool,
+    batch_size: usize,
     num_score_weakens: usize,
 ) -> bool {
-    let batch_size = 1_000_000;
     let store_directory = "reachable_batches".to_string();
     println!("Depth: {}, Scramble: {:?}", depth, scramble);
     let scrambled_puzzle = SinglePuzzle::new_scrambled(scramble.clone(), with_opposite_move);
