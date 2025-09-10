@@ -623,9 +623,12 @@ impl ReachableStates {
         batch: &mut Batch,
         batch_count: &mut usize,
     ) {
+        // apply scramble to current puzzle
+        let mut current_puzzle = puzzle.clone();
+        current_puzzle.apply_scramble(scramble.clone());
         if improve {
             if scores.len() > num_score_weakens {
-                let current_score = puzzle.calculate_score();
+                let current_score = current_puzzle.calculate_score();
                 let critical_score = scores[scores.len() - 1 - num_score_weakens];
                 // we want to improve, hence if the current score is less than the critical score, we stop
                 if current_score < critical_score {
@@ -634,7 +637,7 @@ impl ReachableStates {
             }
         } else {
             if scores.len() > num_score_weakens {
-                let current_score = puzzle.calculate_score();
+                let current_score = current_puzzle.calculate_score();
                 let critical_score = scores[scores.len() - 1 - num_score_weakens];
                 // we want to worsen, hence if the current score is more than the critical score, we stop
                 if current_score > critical_score {
