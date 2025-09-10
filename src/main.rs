@@ -1,7 +1,31 @@
+use clap::Parser;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use std::fs::{create_dir_all, File};
 use std::io::{BufReader, BufWriter, Read, Write};
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Use opposite move logic
+    #[arg(long, default_value_t = false)]
+    with_opposite_move: bool,
+    /// Batch size
+    #[arg(long, default_value_t = 1_000_000)]
+    batch_size: usize,
+    /// Number of score weakens
+    #[arg(long, default_value_t = 3)]
+    num_score_weakens: usize,
+    /// Number of moves in scramble
+    #[arg(long, default_value_t = 50)]
+    scramble_moves: usize,
+    /// Starting depth
+    #[arg(long, default_value_t = 10)]
+    start_depth: usize,
+    /// Maximum depth
+    #[arg(long, default_value_t = 13)]
+    max_depth: usize,
+}
 
 // make face be stored with 3 bits
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -693,12 +717,16 @@ impl ReachableStates {
 }
 
 fn main() {
-    let with_opposite_move = false;
-    let batch_size = 1_000_000;
-    let num_score_weakens = 3;
-    let scramble = get_random_scramble(50);
-    for i in 10..13 {
-        let found_solution = find_solution(i, scramble.clone(), with_opposite_move, batch_size, num_score_weakens);
+    let args = Args::parse();
+    let scramble = get_random_scramble(args.scramble_moves);
+    for i in args.start_depth..args.max_depth {
+        let found_solution = find_solution(
+            i,
+            scramble.clone(),
+            args.with_opposite_move,
+            args.batch_size,
+            args.num_score_weakens,
+        );
         if found_solution {
             break;
         }
