@@ -2,7 +2,7 @@ use crate::single_puzzle::SinglePuzzle;
 use crate::scramble::Scramble;
 use crate::helpers::{get_all_moves};
 use std::fs::{File, create_dir_all};
-use std::io::{BufWriter, BufReader, Write, Read};
+use std::io::{BufWriter, BufReader};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Batch {
@@ -34,68 +34,16 @@ impl Batch {
         let file = File::create(path).expect("Failed to create batch file");
         let mut writer = BufWriter::new(file);
         for puzzle in &self.states {
-            let scramble = puzzle.get_scramble();
-            let moves_len = scramble.moves.len() as u8;
-            writer.write_all(&[moves_len]).unwrap();
-            for mv in scramble.moves.iter() {
-                writer
-                    .write_all(&[mv.face as u8, mv.direction as u8])
-                    .unwrap();
-            }
-            for slot in puzzle.slots.iter() {
-                writer.write_all(&[*slot]).unwrap();
-            }
-            writer.write_all(b"\n").unwrap();
+            puzzle.save_binary_to_file(&mut writer);
         }
     }
 
     pub fn load_from_file(path: &str, with_opposite_move: bool) -> Self {
         let file = File::open(path).expect("Failed to open batch file");
         let mut reader = BufReader::new(file);
-        let mut buf = Vec::new();
-        reader.read_to_end(&mut buf).unwrap();
         let mut states = Vec::new();
-        let mut i = 0;
-        while i < buf.len() {
-            let moves_len = buf[i] as usize;
-            i += 1;
-            let mut moves = Vec::new();
-            for _ in 0..moves_len {
-                let face = match buf[i] {
-                    0b001 => crate::single_puzzle::Face::TopLeft,
-                    0b010 => crate::single_puzzle::Face::Left,
-                    0b100 => crate::single_puzzle::Face::BottomLeft,
-                    0b011 => crate::single_puzzle::Face::TopRight,
-                    0b101 => crate::single_puzzle::Face::Right,
-                    0b110 => crate::single_puzzle::Face::BottomRight,
-                    _ => panic!("Invalid face"),
-                };
-                let direction = match buf[i + 1] {
-                    0b1 => crate::single_puzzle::Direction::Clockwise,
-                    0b0 => crate::single_puzzle::Direction::CounterClockwise,
-                    _ => panic!("Invalid direction"),
-                };
-                moves.push(crate::single_puzzle::Move::new(face, direction));
-                i += 2;
-            }
-            let mut slots = Vec::new();
-            for _ in 0..24 {
-                slots.push(buf[i]);
-                i += 1;
-            }
-            if i < buf.len() && buf[i] == b'\n' {
-                i += 1;
-            }
-            let scramble = if moves.is_empty() {
-                None
-            } else {
-                Some(Scramble { moves })
-            };
-            states.push(SinglePuzzle::from_scramble_and_slots(
-                scramble,
-                slots,
-                with_opposite_move,
-            ));
+        while let Some(puzzle) = crate::single_puzzle::SinglePuzzle::load_binary_from_file(&mut reader, with_opposite_move) {
+            states.push(puzzle);
         }
         Batch {
             batch_size: states.len(),
