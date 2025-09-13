@@ -336,4 +336,56 @@ impl SinglePuzzle {
         puzzle.deduce_colors();
         puzzle
     }
+
+    pub fn save_binary_to_file(&self, writer: &mut impl std::io::Write) {
+        let scramble = self.get_scramble();
+        let moves_len = scramble.moves.len() as u8;
+        writer.write_all(&[moves_len]).unwrap();
+        for mv in scramble.moves.iter() {
+            writer.write_all(&[mv.face as u8, mv.direction as u8]).unwrap();
+        }
+        for slot in self.slots.iter() {
+            writer.write_all(&[*slot]).unwrap();
+        }
+        writer.write_all(b"\n").unwrap();
+    }
+
+    pub fn load_binary_from_file(reader: &mut impl std::io::Read, with_opposite_move: bool) -> Option<Self> {
+        let mut moves_len_buf = [0u8; 1];
+        if reader.read_exact(&mut moves_len_buf).is_err() {
+            return None;
+        }
+        let moves_len = moves_len_buf[0] as usize;
+        let mut moves = Vec::new();
+        let mut mv_buf = [0u8; 2];
+        for _ in 0..moves_len {
+            if reader.read_exact(&mut mv_buf).is_err() {
+                return None;
+            }
+            let face = match mv_buf[0] {
+                0b001 => Face::TopLeft,
+                0b010 => Face::Left,
+                0b100 => Face::BottomLeft,
+                0b011 => Face::TopRight,
+                0b101 => Face::Right,
+                0b110 => Face::BottomRight,
+                _ => return None,
+            };
+            let direction = match mv_buf[1] {
+                0b1 => Direction::Clockwise,
+                0b0 => Direction::CounterClockwise,
+                _ => return None,
+            };
+            moves.push(Move::new(face, direction));
+        }
+        let mut slots = vec![0u8; 24];
+        if reader.read_exact(&mut slots).is_err() {
+            return None;
+        }
+        // skip newline if present
+        let mut nl = [0u8; 1];
+        let _ = reader.read_exact(&mut nl);
+        let scramble = if moves.is_empty() { None } else { Some(crate::scramble::Scramble { moves }) };
+        Some(SinglePuzzle::from_scramble_and_slots(scramble, slots, with_opposite_move))
+    }
 }
