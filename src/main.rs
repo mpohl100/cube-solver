@@ -2,6 +2,7 @@ mod single_puzzle;
 mod scramble;
 mod reachable;
 mod helpers;
+mod puzzle_trait;
 
 use clap::Parser;
 use single_puzzle::SinglePuzzle;

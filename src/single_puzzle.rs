@@ -1,5 +1,6 @@
+use crate::helpers::{calculate_neighbours, get_color};
+use crate::puzzle_trait::PuzzleTrait;
 use crate::scramble::Scramble;
-use crate::helpers::{get_color, calculate_neighbours};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Face {
@@ -146,148 +147,148 @@ impl SinglePuzzle {
         }
         // ...existing code for move application...
         match mv.face {
-            Face::TopLeft => {
-                match mv.direction {
-                    Direction::Clockwise => {
-                        let first_one = self.slots[5];
-                        self.slots[5] = self.slots[23];
-                        self.slots[23] = self.slots[22];
-                        self.slots[22] = self.slots[20];
-                        self.slots[20] = self.slots[21];
-                        self.slots[21] = self.slots[4];
-                        self.slots[5] = first_one;
-                    }
-                    Direction::CounterClockwise => {
-                        let first_one = self.slots[5];
-                        self.slots[5] = self.slots[4];
-                        self.slots[4] = self.slots[21];
-                        self.slots[21] = self.slots[20];
-                        self.slots[20] = self.slots[22];
-                        self.slots[22] = self.slots[23];
-                        self.slots[23] = first_one;
-                    }
+            Face::TopLeft => match mv.direction {
+                Direction::Clockwise => {
+                    let first_one = self.slots[5];
+                    self.slots[5] = self.slots[23];
+                    self.slots[23] = self.slots[22];
+                    self.slots[22] = self.slots[20];
+                    self.slots[20] = self.slots[21];
+                    self.slots[21] = self.slots[4];
+                    self.slots[5] = first_one;
                 }
-            }
-            Face::Left => {
-                match mv.direction {
-                    Direction::Clockwise => {
-                        let first_one = self.slots[20];
-                        self.slots[20] = self.slots[19];
-                        self.slots[19] = self.slots[18];
-                        self.slots[18] = self.slots[16];
-                        self.slots[16] = self.slots[17];
-                        self.slots[17] = self.slots[21];
-                        self.slots[21] = first_one;
-                    }
-                    Direction::CounterClockwise => {
-                        let first_one = self.slots[20];
-                        self.slots[20] = self.slots[21];
-                        self.slots[21] = self.slots[17];
-                        self.slots[17] = self.slots[16];
-                        self.slots[16] = self.slots[18];
-                        self.slots[18] = self.slots[19];
-                        self.slots[19] = first_one;
-                    }
+                Direction::CounterClockwise => {
+                    let first_one = self.slots[5];
+                    self.slots[5] = self.slots[4];
+                    self.slots[4] = self.slots[21];
+                    self.slots[21] = self.slots[20];
+                    self.slots[20] = self.slots[22];
+                    self.slots[22] = self.slots[23];
+                    self.slots[23] = first_one;
                 }
-            }
-            Face::BottomLeft => {
-                match mv.direction {
-                    Direction::Clockwise => {
-                        let first_one = self.slots[17];
-                        self.slots[17] = self.slots[16];
-                        self.slots[16] = self.slots[15];
-                        self.slots[15] = self.slots[14];
-                        self.slots[14] = self.slots[12];
-                        self.slots[12] = self.slots[13];
-                        self.slots[13] = first_one;
-                    }
-                    Direction::CounterClockwise => {
-                        let first_one = self.slots[17];
-                        self.slots[17] = self.slots[13];
-                        self.slots[13] = self.slots[12];
-                        self.slots[12] = self.slots[14];
-                        self.slots[14] = self.slots[15];
-                        self.slots[15] = self.slots[16];
-                        self.slots[16] = first_one;
-                    }
+            },
+            Face::Left => match mv.direction {
+                Direction::Clockwise => {
+                    let first_one = self.slots[20];
+                    self.slots[20] = self.slots[19];
+                    self.slots[19] = self.slots[18];
+                    self.slots[18] = self.slots[16];
+                    self.slots[16] = self.slots[17];
+                    self.slots[17] = self.slots[21];
+                    self.slots[21] = first_one;
                 }
-            }
-            Face::TopRight => {
-                match mv.direction {
-                    Direction::Clockwise => {
-                        let first_one = self.slots[0];
-                        self.slots[0] = self.slots[5];
-                        self.slots[5] = self.slots[4];
-                        self.slots[4] = self.slots[3];
-                        self.slots[3] = self.slots[2];
-                        self.slots[2] = self.slots[1];
-                        self.slots[1] = first_one;
-                    }
-                    Direction::CounterClockwise => {
-                        let first_one = self.slots[0];
-                        self.slots[0] = self.slots[1];
-                        self.slots[1] = self.slots[2];
-                        self.slots[2] = self.slots[3];
-                        self.slots[3] = self.slots[4];
-                        self.slots[4] = self.slots[5];
-                        self.slots[5] = first_one;
-                    }
+                Direction::CounterClockwise => {
+                    let first_one = self.slots[20];
+                    self.slots[20] = self.slots[21];
+                    self.slots[21] = self.slots[17];
+                    self.slots[17] = self.slots[16];
+                    self.slots[16] = self.slots[18];
+                    self.slots[18] = self.slots[19];
+                    self.slots[19] = first_one;
                 }
-            }
-            Face::Right => {
-                match mv.direction {
-                    Direction::Clockwise => {
-                        let first_one = self.slots[2];
-                        self.slots[2] = self.slots[3];
-                        self.slots[3] = self.slots[9];
-                        self.slots[9] = self.slots[8];
-                        self.slots[8] = self.slots[7];
-                        self.slots[7] = self.slots[6];
-                        self.slots[6] = first_one;
-                    }
-                    Direction::CounterClockwise => {
-                        let first_one = self.slots[2];
-                        self.slots[2] = self.slots[6];
-                        self.slots[6] = self.slots[7];
-                        self.slots[7] = self.slots[8];
-                        self.slots[8] = self.slots[9];
-                        self.slots[9] = self.slots[3];
-                        self.slots[3] = first_one;
-                    }
+            },
+            Face::BottomLeft => match mv.direction {
+                Direction::Clockwise => {
+                    let first_one = self.slots[17];
+                    self.slots[17] = self.slots[16];
+                    self.slots[16] = self.slots[15];
+                    self.slots[15] = self.slots[14];
+                    self.slots[14] = self.slots[12];
+                    self.slots[12] = self.slots[13];
+                    self.slots[13] = first_one;
                 }
-            }
-            Face::BottomRight => {
-                match mv.direction {
-                    Direction::Clockwise => {
-                        let first_one = self.slots[9];
-                        self.slots[9] = self.slots[13];
-                        self.slots[13] = self.slots[12];
-                        self.slots[12] = self.slots[11];
-                        self.slots[11] = self.slots[10];
-                        self.slots[10] = self.slots[8];
-                        self.slots[8] = first_one;
-                    }
-                    Direction::CounterClockwise => {
-                        let first_one = self.slots[9];
-                        self.slots[9] = self.slots[8];
-                        self.slots[8] = self.slots[10];
-                        self.slots[10] = self.slots[11];
-                        self.slots[11] = self.slots[12];
-                        self.slots[12] = self.slots[13];
-                        self.slots[13] = first_one;
-                    }
+                Direction::CounterClockwise => {
+                    let first_one = self.slots[17];
+                    self.slots[17] = self.slots[13];
+                    self.slots[13] = self.slots[12];
+                    self.slots[12] = self.slots[14];
+                    self.slots[14] = self.slots[15];
+                    self.slots[15] = self.slots[16];
+                    self.slots[16] = first_one;
                 }
-            }
+            },
+            Face::TopRight => match mv.direction {
+                Direction::Clockwise => {
+                    let first_one = self.slots[0];
+                    self.slots[0] = self.slots[5];
+                    self.slots[5] = self.slots[4];
+                    self.slots[4] = self.slots[3];
+                    self.slots[3] = self.slots[2];
+                    self.slots[2] = self.slots[1];
+                    self.slots[1] = first_one;
+                }
+                Direction::CounterClockwise => {
+                    let first_one = self.slots[0];
+                    self.slots[0] = self.slots[1];
+                    self.slots[1] = self.slots[2];
+                    self.slots[2] = self.slots[3];
+                    self.slots[3] = self.slots[4];
+                    self.slots[4] = self.slots[5];
+                    self.slots[5] = first_one;
+                }
+            },
+            Face::Right => match mv.direction {
+                Direction::Clockwise => {
+                    let first_one = self.slots[2];
+                    self.slots[2] = self.slots[3];
+                    self.slots[3] = self.slots[9];
+                    self.slots[9] = self.slots[8];
+                    self.slots[8] = self.slots[7];
+                    self.slots[7] = self.slots[6];
+                    self.slots[6] = first_one;
+                }
+                Direction::CounterClockwise => {
+                    let first_one = self.slots[2];
+                    self.slots[2] = self.slots[6];
+                    self.slots[6] = self.slots[7];
+                    self.slots[7] = self.slots[8];
+                    self.slots[8] = self.slots[9];
+                    self.slots[9] = self.slots[3];
+                    self.slots[3] = first_one;
+                }
+            },
+            Face::BottomRight => match mv.direction {
+                Direction::Clockwise => {
+                    let first_one = self.slots[9];
+                    self.slots[9] = self.slots[13];
+                    self.slots[13] = self.slots[12];
+                    self.slots[12] = self.slots[11];
+                    self.slots[11] = self.slots[10];
+                    self.slots[10] = self.slots[8];
+                    self.slots[8] = first_one;
+                }
+                Direction::CounterClockwise => {
+                    let first_one = self.slots[9];
+                    self.slots[9] = self.slots[8];
+                    self.slots[8] = self.slots[10];
+                    self.slots[10] = self.slots[11];
+                    self.slots[11] = self.slots[12];
+                    self.slots[12] = self.slots[13];
+                    self.slots[13] = first_one;
+                }
+            },
         }
     }
 
     pub fn get_solved_states(with_opposite_move: bool) -> Vec<Self> {
-        let top_area = crate::helpers::permutations(vec![0, 4, 5, 23]).into_iter().take(4);
-        let top_right_area = crate::helpers::permutations(vec![1, 2, 3, 6]).into_iter().take(4);
-        let bottom_right_area = crate::helpers::permutations(vec![7, 8, 9, 10]).into_iter().take(4);
-        let bottom_area = crate::helpers::permutations(vec![11, 12, 13, 14]).into_iter().take(4);
-        let bottom_left_area = crate::helpers::permutations(vec![15, 16, 17, 18]).into_iter().take(4);
-        let top_left_area = crate::helpers::permutations(vec![19, 20, 21, 22]).into_iter().take(4);
+        let top_area = crate::helpers::permutations(vec![0, 4, 5, 23])
+            .into_iter()
+            .take(4);
+        let top_right_area = crate::helpers::permutations(vec![1, 2, 3, 6])
+            .into_iter()
+            .take(4);
+        let bottom_right_area = crate::helpers::permutations(vec![7, 8, 9, 10])
+            .into_iter()
+            .take(4);
+        let bottom_area = crate::helpers::permutations(vec![11, 12, 13, 14])
+            .into_iter()
+            .take(4);
+        let bottom_left_area = crate::helpers::permutations(vec![15, 16, 17, 18])
+            .into_iter()
+            .take(4);
+        let top_left_area = crate::helpers::permutations(vec![19, 20, 21, 22])
+            .into_iter()
+            .take(4);
 
         let mut results = Vec::new();
         for tp in top_area {
@@ -342,50 +343,87 @@ impl SinglePuzzle {
         let moves_len = scramble.moves.len() as u8;
         writer.write_all(&[moves_len]).unwrap();
         for mv in scramble.moves.iter() {
-            writer.write_all(&[mv.face as u8, mv.direction as u8]).unwrap();
+            writer
+                .write_all(&[mv.face as u8, mv.direction as u8])
+                .unwrap();
         }
         for slot in self.slots.iter() {
             writer.write_all(&[*slot]).unwrap();
         }
         writer.write_all(b"\n").unwrap();
     }
+}
 
-    pub fn load_binary_from_file(reader: &mut impl std::io::Read, with_opposite_move: bool) -> Option<Self> {
-        let mut moves_len_buf = [0u8; 1];
-        if reader.read_exact(&mut moves_len_buf).is_err() {
-            return None;
-        }
-        let moves_len = moves_len_buf[0] as usize;
-        let mut moves = Vec::new();
-        let mut mv_buf = [0u8; 2];
-        for _ in 0..moves_len {
-            if reader.read_exact(&mut mv_buf).is_err() {
-                return None;
-            }
-            let face = match mv_buf[0] {
-                0b001 => Face::TopLeft,
-                0b010 => Face::Left,
-                0b100 => Face::BottomLeft,
-                0b011 => Face::TopRight,
-                0b101 => Face::Right,
-                0b110 => Face::BottomRight,
-                _ => return None,
-            };
-            let direction = match mv_buf[1] {
-                0b1 => Direction::Clockwise,
-                0b0 => Direction::CounterClockwise,
-                _ => return None,
-            };
-            moves.push(Move::new(face, direction));
-        }
-        let mut slots = vec![0u8; 24];
-        if reader.read_exact(&mut slots).is_err() {
-            return None;
-        }
-        // skip newline if present
-        let mut nl = [0u8; 1];
-        let _ = reader.read_exact(&mut nl);
-        let scramble = if moves.is_empty() { None } else { Some(crate::scramble::Scramble { moves }) };
-        Some(SinglePuzzle::from_scramble_and_slots(scramble, slots, with_opposite_move))
+impl PuzzleTrait for SinglePuzzle {
+    fn get_scramble(&self) -> Scramble {
+        self.get_scramble()
     }
+    fn calculate_score(&self) -> i64 {
+        self.calculate_score()
+    }
+    fn apply_scramble(&mut self, scramble: Scramble) {
+        self.apply_scramble(scramble)
+    }
+    fn save_binary_to_file(&self, writer: &mut impl std::io::Write) {
+        self.save_binary_to_file(writer)
+    }
+    fn load_binary_from_file(
+        reader: &mut impl std::io::Read,
+        with_opposite_move: bool,
+    ) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        read_binary_from_file(reader, with_opposite_move)
+    }
+}
+
+pub fn read_binary_from_file(
+    reader: &mut impl std::io::Read,
+    with_opposite_move: bool,
+) -> Option<SinglePuzzle> {
+    let mut moves_len_buf = [0u8; 1];
+    if reader.read_exact(&mut moves_len_buf).is_err() {
+        return None;
+    }
+    let moves_len = moves_len_buf[0] as usize;
+    let mut moves = Vec::new();
+    let mut mv_buf = [0u8; 2];
+    for _ in 0..moves_len {
+        if reader.read_exact(&mut mv_buf).is_err() {
+            return None;
+        }
+        let face = match mv_buf[0] {
+            0b001 => Face::TopLeft,
+            0b010 => Face::Left,
+            0b100 => Face::BottomLeft,
+            0b011 => Face::TopRight,
+            0b101 => Face::Right,
+            0b110 => Face::BottomRight,
+            _ => return None,
+        };
+        let direction = match mv_buf[1] {
+            0b1 => Direction::Clockwise,
+            0b0 => Direction::CounterClockwise,
+            _ => return None,
+        };
+        moves.push(Move::new(face, direction));
+    }
+    let mut slots = vec![0u8; 24];
+    if reader.read_exact(&mut slots).is_err() {
+        return None;
+    }
+    // skip newline if present
+    let mut nl = [0u8; 1];
+    let _ = reader.read_exact(&mut nl);
+    let scramble = if moves.is_empty() {
+        None
+    } else {
+        Some(crate::scramble::Scramble { moves })
+    };
+    Some(SinglePuzzle::from_scramble_and_slots(
+        scramble,
+        slots,
+        with_opposite_move,
+    ))
 }
