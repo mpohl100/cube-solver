@@ -1,16 +1,17 @@
-use crate::single_puzzle::SinglePuzzle;
+use crate::puzzle_trait::PuzzleTrait;
 use crate::scramble::Scramble;
-use crate::helpers::{get_all_moves};
+use crate::helpers::get_all_moves;
 use std::fs::{File, create_dir_all};
 use std::io::{BufWriter, BufReader};
+use std::marker::PhantomData;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Batch {
+#[derive(Debug)]
+pub struct Batch<Puzzle: PuzzleTrait> {
     pub batch_size: usize,
-    pub states: Vec<SinglePuzzle>,
+    pub states: Vec<Puzzle>,
 }
 
-impl Batch {
+impl<Puzzle: PuzzleTrait> Batch<Puzzle> {
     pub fn new(batch_size: usize) -> Self {
         Batch {
             batch_size,
@@ -22,12 +23,12 @@ impl Batch {
         self.states.len() >= self.batch_size
     }
 
-    pub fn add_state(&mut self, state: SinglePuzzle) {
+    pub fn add_state(&mut self, state: Puzzle) {
         self.states.push(state);
     }
 
     pub fn sort_states(&mut self) {
-        self.states.sort();
+        self.states.sort_by(|a, b| a.cmp(&b));
     }
 
     pub fn save_to_file(&self, path: &str) {
@@ -38,11 +39,14 @@ impl Batch {
         }
     }
 
-    pub fn load_from_file(path: &str, with_opposite_move: bool) -> Self {
+    pub fn load_from_file(
+        path: &str,
+        with_opposite_move: bool,
+    ) -> Self {
         let file = File::open(path).expect("Failed to open batch file");
         let mut reader = BufReader::new(file);
         let mut states = Vec::new();
-        while let Some(puzzle) = crate::single_puzzle::SinglePuzzle::load_binary_from_file(&mut reader, with_opposite_move) {
+        while let Some(puzzle) = Puzzle::load_binary_from_file(&mut reader, with_opposite_move) {
             states.push(puzzle);
         }
         Batch {
@@ -52,7 +56,9 @@ impl Batch {
     }
 }
 
-pub struct ReachableStates {
+pub struct ReachableStates<Puzzle: PuzzleTrait> {
+    // introduce a marker for puzzle
+    _marker: PhantomData<Puzzle>,
     pub depth: usize,
     pub batch_size: usize,
     pub batch_files: Vec<String>,
@@ -60,10 +66,10 @@ pub struct ReachableStates {
     pub with_opposite_move: bool,
 }
 
-impl ReachableStates {
+impl<Puzzle: PuzzleTrait> ReachableStates<Puzzle> {
     pub fn new(
         depth: usize,
-        puzzle: SinglePuzzle,
+        puzzle: Puzzle,
         batch_size: usize,
         store_directory: String,
         with_opposite_move: bool,
@@ -75,6 +81,7 @@ impl ReachableStates {
         let mut batch = Batch::new(batch_size);
         let mut batch_count = 0;
         let mut reachable_states = Self {
+            _marker: PhantomData,
             depth,
             batch_size,
             batch_files,
@@ -105,8 +112,9 @@ impl ReachableStates {
     pub fn print_first_5(&self, with_opposite_move: bool) {
         let mut count = 0;
         for batch_path in &self.batch_files {
-            let batch = Batch::load_from_file(batch_path, with_opposite_move);
+            let batch = Batch::<Puzzle>::load_from_file(batch_path, with_opposite_move);
             for state in &batch.states {
+                // Debug print via downcast
                 println!("{:?}", state);
                 count += 1;
                 if count >= 5 {
@@ -120,15 +128,13 @@ impl ReachableStates {
         for j in 0..self.batch_files.len().saturating_sub(1) {
             let i = self.batch_files.len() - 2 - j;
             let batch_path_a = &self.batch_files[i];
-            let batch_a = Batch::load_from_file(batch_path_a, self.with_opposite_move);
+            let batch_a = Batch::<Puzzle>::load_from_file(batch_path_a, self.with_opposite_move);
             let batch_path_b = &self.batch_files[i + 1];
-            let batch_b = Batch::load_from_file(batch_path_b, self.with_opposite_move);
-            let states_a = batch_a.states;
-            let states_b = batch_b.states;
+            let batch_b = Batch::<Puzzle>::load_from_file(batch_path_b, self.with_opposite_move);
             let mut merged_states = Vec::new();
-            merged_states.extend(states_a);
-            merged_states.extend(states_b);
-            merged_states.sort();
+            merged_states.extend(batch_a.states);
+            merged_states.extend(batch_b.states);
+            merged_states.sort_by(|a, b| a.cmp(&b));
             let batch = Batch {
                 states: merged_states[0..batch_a.batch_size].to_vec(),
                 batch_size: batch_a.batch_size,
@@ -150,8 +156,8 @@ impl ReachableStates {
         scores: Vec<i64>,
         num_score_weakens: usize,
         improve: bool,
-        puzzle: SinglePuzzle,
-        batch: &mut Batch,
+        puzzle: Puzzle,
+        batch: &mut Batch<Puzzle>,
         batch_count: &mut usize,
     ) {
         let mut current_puzzle = puzzle.clone();
@@ -223,9 +229,9 @@ impl ReachableStates {
         let mut j = 0;
         while i_batch < self.batch_files.len() && j_batch < other.batch_files.len() {
             let batch_a_path = &self.batch_files[i_batch];
-            let batch_a = Batch::load_from_file(batch_a_path, with_opposite_move);
+            let batch_a = Batch::<Puzzle>::load_from_file(batch_a_path, with_opposite_move);
             let batch_b_path = &other.batch_files[j_batch];
-            let batch_b = Batch::load_from_file(batch_b_path, with_opposite_move);
+            let batch_b = Batch::<Puzzle>::load_from_file(batch_b_path, with_opposite_move);
             while i < batch_a.states.len() && j < batch_b.states.len() {
                 match batch_a.states[i].cmp(&batch_b.states[j]) {
                     std::cmp::Ordering::Equal => {
